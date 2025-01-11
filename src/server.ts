@@ -451,5 +451,5 @@ server.listen({ port: 3333, host: "0.0.0.0" }, (err) => {
     console.error("Error starting server:", err);
     process.exit(1);
   }
-  console.log("Server listening at http://localhost:3333");
+  console.log("Server listening at http://0.0.0.0:3333");
 });
