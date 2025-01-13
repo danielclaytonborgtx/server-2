@@ -379,7 +379,7 @@ server.get('/property/user', async (request: FastifyRequest<{ Querystring: { use
     // Mapeando os imóveis para incluir as URLs completas das imagens
     const propertiesUrl = properties.map((property) => {
       const updatedImages = property.images.map((image) => {
-        const imageUrl = `http://localhost:3333${image.url}`;
+        const imageUrl = `https://server-2-production.up.railway.app${image.url}`;
         return imageUrl; // Retorna a URL completa da imagem
       });
 
