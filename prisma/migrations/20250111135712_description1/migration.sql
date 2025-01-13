@@ -1,2 +1,1 @@
--- AlterTable
-ALTER TABLE "Property" ALTER COLUMN "description1" DROP NOT NULL;
+ALTER TABLE "Property" ADD COLUMN "description1" TEXT;
