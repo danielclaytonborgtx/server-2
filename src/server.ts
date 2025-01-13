@@ -379,7 +379,7 @@ server.get('/property/user', async (request: FastifyRequest<{ Querystring: { use
     // Mapeando os imóveis para incluir as URLs completas das imagens
     const propertiesUrl = properties.map((property) => {
       const updatedImages = property.images.map((image) => {
-        const imageUrl = `https://server-2-production.up.railway.app${image.url}`;
+        const imageUrl = `http://localhost:3333${image.url}`;
         return imageUrl; // Retorna a URL completa da imagem
       });
 
@@ -446,10 +446,16 @@ server.delete(
 );
 
 // Iniciar o servidor
-server.listen({ port: 3333, host: "0.0.0.0" }, (err) => {
-  if (err) {
-    console.error("Error starting server:", err);
+const port = process.env.PORT ? Number(process.env.PORT) : 8080;
+
+async function start() {
+  try {
+    await server.listen({ port, host: '0.0.0.0' });
+    console.log(`Server listening at http://0.0.0.0:${port}`);
+  } catch (err) {
+    console.error('Error starting server:', err);
     process.exit(1);
   }
-  console.log("Server listening at http://0.0.0.0:3333");
-});
+}
+
+start();
