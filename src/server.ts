@@ -16,12 +16,13 @@ const client = new OAuth2Client('468088106800-vrpeq16jtc739ngvvvf3a8mrdbpd5is5.a
 
 server.register(fastifyMultipart, {
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
-    files: 10, // Limita a quantidade de arquivos (5 no exemplo)
+    fileSize: 10 * 1024 * 1024, 
+    files: 10,
   },
 });
 
 const uploadsPath = path.join(__dirname, '../uploads');
+
 // Registra o plugin para servir arquivos estáticos
 server.register(fastifyStatic, {
   root: uploadsPath,
@@ -394,23 +395,6 @@ server.get('/property/user', async (request: FastifyRequest<{ Querystring: { use
   } catch (error) {
     console.error('Erro ao buscar imóveis do usuário:', error);
     return reply.status(500).send({ error: 'Falha ao buscar imóveis' });
-  }
-});
-
-server.put("/property/:id", async (request: FastifyRequest<{ Params: { id: string }, Body: PropertyRequest }>, reply: FastifyReply) => {
-  const { id } = request.params;
-  const { title, price, description, description1, latitude, longitude, category } = request.body;
-
-  try {
-    const updatedProperty = await prisma.property.update({
-      where: { id: Number(id) },
-      data: { title, price, description, description1, latitude, longitude, category },
-    });
-
-    return reply.send({ message: 'Imóvel atualizado com sucesso', updatedProperty });
-  } catch (error) {
-    console.error("Erro ao atualizar imóvel:", error);
-    return reply.status(500).send({ error: 'Falha ao atualizar imóvel.' });
   }
 });
 
