@@ -398,6 +398,53 @@ server.get('/property/user', async (request: FastifyRequest<{ Querystring: { use
   }
 });
 
+// Rota para obter detalhes de um imóvel específico
+server.get("/property/:id", async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  try {
+    // Obtém o ID do imóvel a partir da URL
+    const { id } = request.params;
+
+    // Verifica se o ID é válido (número)
+    if (isNaN(Number(id))) {
+      return reply.status(400).send({ error: "ID inválido." });
+    }
+
+    // Busca o imóvel pelo ID no banco de dados
+    const property = await prisma.property.findUnique({
+      where: { id: Number(id) },
+      include: { images: true }, // Inclui as imagens associadas ao imóvel
+    });
+
+    // Verifica se o imóvel foi encontrado
+    if (!property) {
+      return reply.status(404).send({ error: "Imóvel não encontrado." });
+    }
+
+    // Retorna as informações do imóvel
+    return reply.send(property);
+  } catch (err) {
+    console.error("Erro ao buscar imóvel:", err);
+    return reply.status(500).send({ error: "Falha ao buscar imóvel. Tente novamente." });
+  }
+});
+
+server.put("/property/:id", async (request: FastifyRequest<{ Params: { id: string }, Body: PropertyRequest }>, reply: FastifyReply) => {
+  const { id } = request.params;
+  const { title, price, description, description1, latitude, longitude, category } = request.body;
+
+  try {
+    const updatedProperty = await prisma.property.update({
+      where: { id: Number(id) },
+      data: { title, price, description, description1, latitude, longitude, category },
+    });
+
+    return reply.send({ message: 'Imóvel atualizado com sucesso', updatedProperty });
+  } catch (error) {
+    console.error("Erro ao atualizar imóvel:", error);
+    return reply.status(500).send({ error: 'Falha ao atualizar imóvel.' });
+  }
+});
+
 // Rota para deletar um imóvel
 server.delete(
   "/property/:id",
