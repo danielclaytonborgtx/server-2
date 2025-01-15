@@ -397,6 +397,23 @@ server.get('/property/user', async (request: FastifyRequest<{ Querystring: { use
   }
 });
 
+server.put("/property/:id", async (request: FastifyRequest<{ Params: { id: string }, Body: PropertyRequest }>, reply: FastifyReply) => {
+  const { id } = request.params;
+  const { title, price, description, description1, latitude, longitude, category } = request.body;
+
+  try {
+    const updatedProperty = await prisma.property.update({
+      where: { id: Number(id) },
+      data: { title, price, description, description1, latitude, longitude, category },
+    });
+
+    return reply.send({ message: 'Imóvel atualizado com sucesso', updatedProperty });
+  } catch (error) {
+    console.error("Erro ao atualizar imóvel:", error);
+    return reply.status(500).send({ error: 'Falha ao atualizar imóvel.' });
+  }
+});
+
 // Rota para deletar um imóvel
 server.delete(
   "/property/:id",
