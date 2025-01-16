@@ -431,87 +431,58 @@ server.get("/property/:id", async (request: FastifyRequest<{ Params: { id: strin
 // Rota para editar imóveis
 server.put("/property/:id", async (request: FastifyRequest, reply: FastifyReply) => {
   try {
-    const { id } = request.params as { id: string }; // ID do imóvel que será editado
+    const { id } = request.params as { id: string }; // Captura o ID do imóvel na URL
     const parts = request.parts(); // Processa arquivos e campos multipart
     const imagensUrls: string[] = [];
     const formData: Record<string, string> = {};
 
-    // Processar as partes da requisição
     for await (const part of parts) {
       if (part.type === "file") {
-        // Garante que o nome do arquivo seja único usando timestamp
         const fileName = `${Date.now()}_${part.filename}`;
-        const filePath = path.join("uploads", fileName); // Diretório 'uploads/'
-
-        // Gera a URL pública que pode ser acessada
-        const imageUrl = `/uploads/${fileName}`.replace(/\/+/g, "/"); // Elimina múltiplos "/"
-        console.log("URL gerada:", imageUrl);
-        // Faz o upload do arquivo para o diretório "uploads/"
+        const filePath = path.join("uploads", fileName);
+        const imageUrl = `/uploads/${fileName}`.replace(/\/+/g, "/");
         await pump(part.file, fs.createWriteStream(filePath));
-
-        // Adiciona a URL da imagem ao array de URLs
         imagensUrls.push(imageUrl);
       } else if (typeof part.value === "string") {
-        // Adiciona os campos de texto ao formData
         formData[part.fieldname] = part.value;
       }
     }
 
     const { title, price, description, description1, userId, latitude, longitude, category } = formData;
 
-    // Verifica se todos os campos obrigatórios estão presentes
-    if (!title || !price || !description || !description1 || !userId || !latitude || !longitude || !category) {
-      return reply.status(400).send({ error: "Todos os campos são obrigatórios." });
+    // Verifica se os campos obrigatórios estão presentes (campos opcionais são permitidos para edição)
+    if (!title && !price && !description && !description1 && !latitude && !longitude && !category && imagensUrls.length === 0) {
+      return reply.status(400).send({ error: "Nenhum dado enviado para atualizar o imóvel." });
     }
 
-    // Validação do esquema Joi
-    const { error } = propertySchema.validate({
-      title,
-      price: Number(price),
-      description,
-      description1,
-      userId: Number(userId),
-      latitude: Number(latitude),
-      longitude: Number(longitude),
-      category: category[0].toUpperCase() + category.slice(1).toLowerCase(), // Formatação da categoria
-      images: imagensUrls,
-    });
-
-    if (error) {
-      console.error("Erro de validação:", error.details);
-      return reply.status(400).send({ error: error.details[0].message });
-    }
-
-    // Buscar o imóvel pelo ID para garantir que ele existe
+    // Busca o imóvel para confirmar que ele existe
     const existingProperty = await prisma.property.findUnique({
       where: { id: Number(id) },
-      include: { images: true }, // Inclui as imagens para edição
     });
 
     if (!existingProperty) {
       return reply.status(404).send({ error: "Imóvel não encontrado." });
     }
 
-    // Atualizar o imóvel no banco de dados
+    // Atualiza o imóvel no banco de dados
     const updatedProperty = await prisma.property.update({
       where: { id: Number(id) },
       data: {
-        title,
-        price: Number(price),
-        description,
-        description1,
-        userId: Number(userId),
-        latitude: Number(latitude),
-        longitude: Number(longitude),
-        category: category[0].toUpperCase() + category.slice(1).toLowerCase(),
-        images: imagensUrls.length > 0 ? { create: imagensUrls.map((url) => ({ url })) } : undefined, // Atualiza imagens, se necessário
+        ...(title && { title }),
+        ...(price && { price: Number(price) }),
+        ...(description && { description }),
+        ...(description1 && { description1 }),
+        ...(latitude && { latitude: Number(latitude) }),
+        ...(longitude && { longitude: Number(longitude) }),
+        ...(category && { category: category[0].toUpperCase() + category.slice(1).toLowerCase() }),
+        ...(imagensUrls.length > 0 && {
+          images: { create: imagensUrls.map((url) => ({ url })) },
+        }),
       },
       include: { images: true },
     });
 
-    console.log("Imagens atualizadas no banco:", updatedProperty.images);
-
-    return reply.status(200).send({ message: "Imóvel atualizado com sucesso", updatedProperty });
+    return reply.status(200).send({ message: "Imóvel atualizado com sucesso", property: updatedProperty });
   } catch (err) {
     console.error("Erro ao atualizar imóvel:", err);
     return reply.status(500).send({ error: "Falha ao atualizar imóvel. Tente novamente." });
