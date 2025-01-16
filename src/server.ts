@@ -428,47 +428,77 @@ server.get("/property/:id", async (request: FastifyRequest<{ Params: { id: strin
   }
 });
 
-//rota para editar imovel
-server.put("/property/:id", async (request: FastifyRequest<{ Params: { id: string }; Body: PropertyRequest }>, reply: FastifyReply) => {
-  const { id } = request.params;
-  const { title, price, description, description1, latitude, longitude, category } = request.body;
+// rota para editar imovel
+server.put(
+  "/property/:id",
+  async (
+    request: FastifyRequest<{ Params: { id: string }; Body: PropertyRequest }>,
+    reply: FastifyReply
+  ) => {
+    const { id } = request.params;
+    const { title, price, description, description1, latitude, longitude, category } = request.body;
 
-  try {
-    // Validação básica dos campos
-    const { error } = propertySchema.validate({
+    // Logando os dados recebidos na requisição
+    console.log("ID recebido:", id);
+    console.log("Dados recebidos no corpo da requisição:", {
       title,
-      price: Number(price),
+      price,
       description,
       description1,
-      latitude: Number(latitude),
-      longitude: Number(longitude),
-      category: category ? category[0].toUpperCase() + category.slice(1).toLowerCase() : undefined,
+      latitude,
+      longitude,
+      category,
     });
 
-    if (error) {
-      return reply.status(400).send({ error: error.details[0].message });
+    try {
+      // Validação dos campos
+      const { error } = propertySchema.validate({
+        title,
+        price: Number(price),
+        description,
+        description1,
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+        category: category
+          ? category[0].toUpperCase() + category.slice(1).toLowerCase()
+          : undefined,
+      });
+
+      if (error) {
+        console.error("Erro de validação:", error.details[0].message);
+        return reply.status(400).send({ error: error.details[0].message });
+      }
+
+      // Log antes de tentar atualizar o imóvel no banco de dados
+      console.log("Tentando atualizar o imóvel no banco de dados...");
+
+      // Atualizar imóvel no banco de dados
+      const updatedProperty = await prisma.property.update({
+        where: { id: Number(id) },
+        data: {
+          ...(title && { title }),
+          ...(price && { price: Number(price) }),
+          ...(description && { description }),
+          ...(description1 && { description1 }),
+          ...(latitude && { latitude: Number(latitude) }),
+          ...(longitude && { longitude: Number(longitude) }),
+          ...(category &&
+            { category: category[0].toUpperCase() + category.slice(1).toLowerCase() }),
+        },
+      });
+
+      // Log do sucesso da atualização
+      console.log("Imóvel atualizado com sucesso:", updatedProperty);
+
+      return reply.send({ message: "Imóvel atualizado com sucesso", updatedProperty });
+    } catch (error) {
+      // Log do erro no backend
+      console.error("Erro ao atualizar imóvel:", error);
+
+      return reply.status(500).send({ error: "Falha ao atualizar imóvel." });
     }
-
-    // Atualizar imóvel no banco de dados
-    const updatedProperty = await prisma.property.update({
-      where: { id: Number(id) },
-      data: {
-        ...(title && { title }),
-        ...(price && { price: Number(price) }),
-        ...(description && { description }),
-        ...(description1 && { description1 }),
-        ...(latitude && { latitude: Number(latitude) }),
-        ...(longitude && { longitude: Number(longitude) }),
-        ...(category && { category: category[0].toUpperCase() + category.slice(1).toLowerCase() }),
-      },
-    });
-
-    return reply.send({ message: "Imóvel atualizado com sucesso", updatedProperty });
-  } catch (error) {
-    console.error("Erro ao atualizar imóvel:", error);
-    return reply.status(500).send({ error: "Falha ao atualizar imóvel." });
   }
-});
+);
 
 // Rota para deletar um imóvel
 server.delete(
