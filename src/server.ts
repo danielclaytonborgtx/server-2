@@ -428,20 +428,45 @@ server.get("/property/:id", async (request: FastifyRequest<{ Params: { id: strin
   }
 });
 
-server.put("/property/:id", async (request: FastifyRequest<{ Params: { id: string }, Body: PropertyRequest }>, reply: FastifyReply) => {
+//rota para editar imovel
+server.put("/property/:id", async (request: FastifyRequest<{ Params: { id: string }; Body: PropertyRequest }>, reply: FastifyReply) => {
   const { id } = request.params;
   const { title, price, description, description1, latitude, longitude, category } = request.body;
 
   try {
-    const updatedProperty = await prisma.property.update({
-      where: { id: Number(id) },
-      data: { title, price, description, description1, latitude, longitude, category },
+    // Validação básica dos campos
+    const { error } = propertySchema.validate({
+      title,
+      price: Number(price),
+      description,
+      description1,
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+      category: category ? category[0].toUpperCase() + category.slice(1).toLowerCase() : undefined,
     });
 
-    return reply.send({ message: 'Imóvel atualizado com sucesso', updatedProperty });
+    if (error) {
+      return reply.status(400).send({ error: error.details[0].message });
+    }
+
+    // Atualizar imóvel no banco de dados
+    const updatedProperty = await prisma.property.update({
+      where: { id: Number(id) },
+      data: {
+        ...(title && { title }),
+        ...(price && { price: Number(price) }),
+        ...(description && { description }),
+        ...(description1 && { description1 }),
+        ...(latitude && { latitude: Number(latitude) }),
+        ...(longitude && { longitude: Number(longitude) }),
+        ...(category && { category: category[0].toUpperCase() + category.slice(1).toLowerCase() }),
+      },
+    });
+
+    return reply.send({ message: "Imóvel atualizado com sucesso", updatedProperty });
   } catch (error) {
     console.error("Erro ao atualizar imóvel:", error);
-    return reply.status(500).send({ error: 'Falha ao atualizar imóvel.' });
+    return reply.status(500).send({ error: "Falha ao atualizar imóvel." });
   }
 });
 
