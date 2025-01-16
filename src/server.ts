@@ -428,77 +428,95 @@ server.get("/property/:id", async (request: FastifyRequest<{ Params: { id: strin
   }
 });
 
-// rota para editar imovel
-server.put(
-  "/property/:id",
-  async (
-    request: FastifyRequest<{ Params: { id: string }; Body: PropertyRequest }>,
-    reply: FastifyReply
-  ) => {
-    const { id } = request.params;
-    const { title, price, description, description1, latitude, longitude, category } = request.body;
+// Rota para editar imóveis
+server.put("/property/:id", async (request: FastifyRequest, reply: FastifyReply) => {
+  try {
+    const { id } = request.params as { id: string }; // ID do imóvel que será editado
+    const parts = request.parts(); // Processa arquivos e campos multipart
+    const imagensUrls: string[] = [];
+    const formData: Record<string, string> = {};
 
-    // Logando os dados recebidos na requisição
-    console.log("ID recebido:", id);
-    console.log("Dados recebidos no corpo da requisição:", {
+    // Processar as partes da requisição
+    for await (const part of parts) {
+      if (part.type === "file") {
+        // Garante que o nome do arquivo seja único usando timestamp
+        const fileName = `${Date.now()}_${part.filename}`;
+        const filePath = path.join("uploads", fileName); // Diretório 'uploads/'
+
+        // Gera a URL pública que pode ser acessada
+        const imageUrl = `/uploads/${fileName}`.replace(/\/+/g, "/"); // Elimina múltiplos "/"
+        console.log("URL gerada:", imageUrl);
+        // Faz o upload do arquivo para o diretório "uploads/"
+        await pump(part.file, fs.createWriteStream(filePath));
+
+        // Adiciona a URL da imagem ao array de URLs
+        imagensUrls.push(imageUrl);
+      } else if (typeof part.value === "string") {
+        // Adiciona os campos de texto ao formData
+        formData[part.fieldname] = part.value;
+      }
+    }
+
+    const { title, price, description, description1, userId, latitude, longitude, category } = formData;
+
+    // Verifica se todos os campos obrigatórios estão presentes
+    if (!title || !price || !description || !description1 || !userId || !latitude || !longitude || !category) {
+      return reply.status(400).send({ error: "Todos os campos são obrigatórios." });
+    }
+
+    // Validação do esquema Joi
+    const { error } = propertySchema.validate({
       title,
-      price,
+      price: Number(price),
       description,
       description1,
-      latitude,
-      longitude,
-      category,
+      userId: Number(userId),
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+      category: category[0].toUpperCase() + category.slice(1).toLowerCase(), // Formatação da categoria
+      images: imagensUrls,
     });
 
-    try {
-      // Validação dos campos
-      const { error } = propertySchema.validate({
+    if (error) {
+      console.error("Erro de validação:", error.details);
+      return reply.status(400).send({ error: error.details[0].message });
+    }
+
+    // Buscar o imóvel pelo ID para garantir que ele existe
+    const existingProperty = await prisma.property.findUnique({
+      where: { id: Number(id) },
+      include: { images: true }, // Inclui as imagens para edição
+    });
+
+    if (!existingProperty) {
+      return reply.status(404).send({ error: "Imóvel não encontrado." });
+    }
+
+    // Atualizar o imóvel no banco de dados
+    const updatedProperty = await prisma.property.update({
+      where: { id: Number(id) },
+      data: {
         title,
         price: Number(price),
         description,
         description1,
+        userId: Number(userId),
         latitude: Number(latitude),
         longitude: Number(longitude),
-        category: category
-          ? category[0].toUpperCase() + category.slice(1).toLowerCase()
-          : undefined,
-      });
+        category: category[0].toUpperCase() + category.slice(1).toLowerCase(),
+        images: imagensUrls.length > 0 ? { create: imagensUrls.map((url) => ({ url })) } : undefined, // Atualiza imagens, se necessário
+      },
+      include: { images: true },
+    });
 
-      if (error) {
-        console.error("Erro de validação:", error.details[0].message);
-        return reply.status(400).send({ error: error.details[0].message });
-      }
+    console.log("Imagens atualizadas no banco:", updatedProperty.images);
 
-      // Log antes de tentar atualizar o imóvel no banco de dados
-      console.log("Tentando atualizar o imóvel no banco de dados...");
-
-      // Atualizar imóvel no banco de dados
-      const updatedProperty = await prisma.property.update({
-        where: { id: Number(id) },
-        data: {
-          ...(title && { title }),
-          ...(price && { price: Number(price) }),
-          ...(description && { description }),
-          ...(description1 && { description1 }),
-          ...(latitude && { latitude: Number(latitude) }),
-          ...(longitude && { longitude: Number(longitude) }),
-          ...(category &&
-            { category: category[0].toUpperCase() + category.slice(1).toLowerCase() }),
-        },
-      });
-
-      // Log do sucesso da atualização
-      console.log("Imóvel atualizado com sucesso:", updatedProperty);
-
-      return reply.send({ message: "Imóvel atualizado com sucesso", updatedProperty });
-    } catch (error) {
-      // Log do erro no backend
-      console.error("Erro ao atualizar imóvel:", error);
-
-      return reply.status(500).send({ error: "Falha ao atualizar imóvel." });
-    }
+    return reply.status(200).send({ message: "Imóvel atualizado com sucesso", updatedProperty });
+  } catch (err) {
+    console.error("Erro ao atualizar imóvel:", err);
+    return reply.status(500).send({ error: "Falha ao atualizar imóvel. Tente novamente." });
   }
-);
+});
 
 // Rota para deletar um imóvel
 server.delete(
