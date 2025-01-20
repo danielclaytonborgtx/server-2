@@ -431,7 +431,7 @@ server.get("/property/:id", async (request: FastifyRequest<{ Params: { id: strin
 // Rota para editar imóveis
 server.put("/property/:id", async (request: FastifyRequest, reply: FastifyReply) => {
   try {
-    const { id } = request.params as { id: string }; // Captura o ID do imóvel na URL
+    const { id } = request.params as { id: string }; // Captura o ID do imóvel
     const parts = request.parts(); // Processa arquivos e campos multipart
     const imagensUrls: string[] = [];
     const formData: Record<string, string> = {};
@@ -448,21 +448,42 @@ server.put("/property/:id", async (request: FastifyRequest, reply: FastifyReply)
       }
     }
 
-    const { title, price, description, description1, userId, latitude, longitude, category } = formData;
+    const {
+      title,
+      price,
+      description,
+      description1,
+      userId,
+      latitude,
+      longitude,
+      category,
+      existingImages, // Nova chave para imagens existentes
+    } = formData;
 
-    // Verifica se os campos obrigatórios estão presentes (campos opcionais são permitidos para edição)
     if (!title && !price && !description && !description1 && !latitude && !longitude && !category && imagensUrls.length === 0) {
       return reply.status(400).send({ error: "Nenhum dado enviado para atualizar o imóvel." });
     }
 
-    // Busca o imóvel para confirmar que ele existe
     const existingProperty = await prisma.property.findUnique({
       where: { id: Number(id) },
+      include: { images: true }, // Inclui as imagens associadas
     });
 
     if (!existingProperty) {
       return reply.status(404).send({ error: "Imóvel não encontrado." });
     }
+
+    // Parse das imagens existentes enviadas no corpo
+    const existingImagesArray: string[] = existingImages ? JSON.parse(existingImages) : [];
+
+    // Remove imagens que não estão na lista de imagens existentes
+    const imagesToRemove = existingProperty.images.filter(
+      (image) => !existingImagesArray.includes(image.url)
+    );
+
+    await prisma.image.deleteMany({
+      where: { id: { in: imagesToRemove.map((image) => image.id) } },
+    });
 
     // Atualiza o imóvel no banco de dados
     const updatedProperty = await prisma.property.update({
@@ -475,14 +496,17 @@ server.put("/property/:id", async (request: FastifyRequest, reply: FastifyReply)
         ...(latitude && { latitude: Number(latitude) }),
         ...(longitude && { longitude: Number(longitude) }),
         ...(category && { category: category[0].toUpperCase() + category.slice(1).toLowerCase() }),
-        ...(imagensUrls.length > 0 && {
-          images: { create: imagensUrls.map((url) => ({ url })) },
-        }),
+        images: {
+          create: imagensUrls.map((url) => ({ url })), // Adiciona novas imagens
+        },
       },
-      include: { images: true },
+      include: { images: true }, // Retorna as imagens atualizadas
     });
 
-    return reply.status(200).send({ message: "Imóvel atualizado com sucesso", property: updatedProperty });
+    return reply.status(200).send({
+      message: "Imóvel atualizado com sucesso",
+      property: updatedProperty,
+    });
   } catch (err) {
     console.error("Erro ao atualizar imóvel:", err);
     return reply.status(500).send({ error: "Falha ao atualizar imóvel. Tente novamente." });
