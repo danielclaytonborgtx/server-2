@@ -10,7 +10,7 @@ export interface Property {
     userId: number;
     createdAt: Date;
     updatedAt: Date;
-    images: string[]; // Supondo que as imagens sejam representadas por URLs
+    images: string[]; 
   }
   
   

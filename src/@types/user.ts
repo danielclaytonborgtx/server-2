@@ -5,7 +5,7 @@ export interface User {
     email: string;
     username: string;
     password: string;
-    picture?: string; // Propriedade picture opcional
+    picture?: string; 
     createdAt: Date;
     updatedAt: Date;
   }

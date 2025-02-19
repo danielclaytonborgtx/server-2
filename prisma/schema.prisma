@@ -19,7 +19,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  properties Property[]
+  properties       Property[] // Propriedades associadas ao usuário
+  messagesSent     Message[]    @relation("SentMessages") // Mensagens enviadas pelo usuário
+  messagesReceived Message[]    @relation("ReceivedMessages") // Mensagens recebidas pelo usuário
+  teamMemberships  TeamMember[] // Relacionamento com equipes que o usuário pertence
 }
 
 model Property {
@@ -35,9 +38,8 @@ model Property {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id])
-
-  images Image[]
+  user   User    @relation(fields: [userId], references: [id])
+  images Image[] // Imagens associadas à propriedade
 }
 
 model Image {
@@ -45,4 +47,35 @@ model Image {
   url        String
   propertyId Int
   property   Property @relation(fields: [propertyId], references: [id])
+}
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  content    String
+  timestamp  DateTime @default(now())
+  senderId   Int
+  receiverId Int
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+}
+
+model Team {
+  id        Int          @id @default(autoincrement())
+  name      String
+  imageUrl  String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  members   TeamMember[] // Relacionamento com os membros da equipe
+}
+
+model TeamMember {
+  id        Int      @id @default(autoincrement())
+  teamId    Int
+  userId    Int
+  createdAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([teamId, userId]) // Garantir que um usuário não se repita na mesma equipe
 }
