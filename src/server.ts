@@ -568,6 +568,7 @@ server.put('/team/:id', async (request: FastifyRequest<{ Params: { id: string } 
   }
 });
 
+// Rota para encontrar uma equipe especifica
 server.get('/team/:id', async (request: FastifyRequest<{ Params: Params }>, reply) => {
   try {
     const teamId = parseInt(request.params.id); // Convertendo id para número
@@ -632,6 +633,52 @@ server.get('/teams', async (request, reply) => {
   } catch (error) {
     console.error(error);
     return reply.status(500).send({ error: 'Erro ao buscar todas as equipes' });
+  }
+});
+
+// Rota para deletar equipe
+server.delete('/team/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  try {
+    const teamId = Number(request.params.id);
+    if (isNaN(teamId)) {
+      return reply.status(400).send({ error: 'ID inválido.' });
+    }
+
+    console.log(`Tentando excluir a equipe com ID: ${teamId}`);
+
+    // Verifica se o time existe antes de deletar
+    const existingTeam = await prisma.team.findUnique({
+      where: { id: teamId },
+    });
+
+    if (!existingTeam) {
+      console.error(`Equipe com ID ${teamId} não encontrada.`);
+      return reply.status(404).send({ error: 'Equipe não encontrada.' });
+    }
+
+    // Primeiro, deletamos os registros relacionados em TeamMember
+    await prisma.teamMember.deleteMany({
+      where: { teamId: teamId },
+    });
+
+    console.log(`Membros da equipe ${teamId} deletados.`);
+
+    // Agora, podemos deletar a equipe
+    await prisma.team.delete({
+      where: { id: teamId },
+    });
+
+    console.log(`Equipe com ID ${teamId} excluída com sucesso.`);
+    reply.status(200).send({ message: 'Equipe deletada com sucesso.' });
+
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error('Erro ao deletar a equipe:', error.message);
+      reply.status(500).send({ error: 'Erro ao deletar a equipe', details: error.message });
+    } else {
+      console.error('Erro desconhecido:', error);
+      reply.status(500).send({ error: 'Erro ao deletar a equipe' });
+    }
   }
 });
 
