@@ -38,6 +38,11 @@ interface Params {
   id: string; // Ou 'id: number' se for um número
 }
 
+interface FilterQuery {
+  userId: string;
+  teamId: string;
+}
+
 // Interfaces para o corpo das requisições
 interface RegisterRequest {
   name: string;
@@ -185,7 +190,17 @@ server.post(
     const { username, password } = request.body;
 
     try {
-      const user = await prisma.user.findUnique({ where: { username } });
+      const user = await prisma.user.findUnique({
+        where: { username },
+        include: {
+          teamMemberships: {
+            include: {
+              team: true,  // Incluir o time do usuário
+            }
+          }
+        }
+      });
+
       console.log("Usuário encontrado:", user);
 
       if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -194,6 +209,8 @@ server.post(
       }
 
       // Garantir que o campo picture seja tratado como opcional
+      const userTeam = user.teamMemberships.length > 0 ? user.teamMemberships[0].team : null;
+
       return reply.send({
         message: "Login successful",
         user: {
@@ -201,7 +218,8 @@ server.post(
           name: user.name,
           email: user.email,
           username: user.username,
-          picture: user.picture || null, // Definir como null se não houver imagem
+          picture: user.picture || null,
+          team: userTeam, // Incluindo a equipe do usuário
         },
       });
     } catch (error) {
@@ -210,6 +228,7 @@ server.post(
     }
   }
 );
+
 
 // Rota para atualizar a imagem de perfil do usuário
 server.post("/users/:id/profile-picture", async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
@@ -326,11 +345,35 @@ server.post(
 // Rota de buscar todos usuários
 server.get('/users', async (request, reply) => {
   try {
-    const users = await prisma.user.findMany(); // Busca todos os usuários no banco
+    const users = await prisma.user.findMany({
+      include: {
+        teamMemberships: { // Inclui as equipes associadas ao usuário
+          include: {
+            team: true, // Inclui os dados das equipes
+          },
+        },
+      },
+    });
     return reply.send(users);
   } catch (error) {
     console.error(error);
     return reply.status(500).send({ error: 'Failed to fetch users' });
+  }
+});
+
+server.get('/users/no-team', async (request, reply) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        teamMemberships: {
+          none: {} // Garante que o usuário não tenha nenhuma equipe associada
+        },
+      },
+    });
+    return reply.send(users);
+  } catch (error) {
+    console.error(error);
+    return reply.status(500).send({ error: 'Failed to fetch users without team' });
   }
 });
 
@@ -434,6 +477,43 @@ server.post("/team", async (request, reply) => {
   } catch (err) {
     console.error("❌ Erro ao criar equipe:", err);
     return reply.status(500).send({ error: "Falha ao criar equipe. Tente novamente." });
+  }
+});
+
+server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: FastifyReply) => {
+  try {
+    const { teamId } = request.params as { teamId: string };
+    const { userId } = request.body as { userId: number }; // Supõe que o userId é enviado no corpo da requisição
+
+    // Verifica se a equipe existe
+    const team = await prisma.team.findUnique({
+      where: { id: parseInt(teamId) },
+      include: { members: true },
+    });
+
+    if (!team) {
+      return reply.status(404).send({ error: 'Equipe não encontrada.' });
+    }
+
+    // Verifica se o usuário é membro da equipe
+    const isMember = team.members.some((member) => member.userId === userId);
+
+    if (!isMember) {
+      return reply.status(400).send({ error: 'Usuário não é membro da equipe.' });
+    }
+
+    // Remove o usuário da equipe
+    await prisma.teamMember.deleteMany({
+      where: {
+        teamId: parseInt(teamId),
+        userId: userId,
+      },
+    });
+
+    return reply.status(200).send({ message: 'Usuário saiu da equipe com sucesso.' });
+  } catch (error) {
+    console.error('Erro ao deixar a equipe:', error);
+    return reply.status(500).send({ error: 'Erro ao deixar a equipe.' });
   }
 });
 
@@ -623,13 +703,22 @@ server.get('/teams', async (request, reply) => {
       include: {
         members: {
           include: {
-            user: true,
+            user: true, // Inclui o usuário do membro
           },
         },
       },
     });
 
-    return reply.send(teams);
+    // Adiciona o creatorId à equipe (usando o primeiro membro como criador)
+    const teamsWithCreator = teams.map((team) => {
+      const creatorId = team.members[0]?.userId; // Considera o primeiro membro como criador
+      return {
+        ...team,
+        creatorId, // Adiciona o creatorId à equipe
+      };
+    });
+
+    return reply.send(teamsWithCreator);
   } catch (error) {
     console.error(error);
     return reply.status(500).send({ error: 'Erro ao buscar todas as equipes' });
@@ -777,37 +866,33 @@ server.get('/messages/conversations/:userId', async (request: FastifyRequest<{ P
   }
 
   try {
-    const conversations = await prisma.message.groupBy({
-      by: ['senderId', 'receiverId'],
+    // Buscar todas as conversas do usuário
+    const conversations = await prisma.message.findMany({
       where: {
         OR: [{ senderId: userId }, { receiverId: userId }],
       },
-      _max: { timestamp: true },
+      orderBy: { timestamp: 'desc' }, // Ordenar por timestamp para pegar a última mensagem primeiro
     });
 
-    // Formatar o retorno para exibir os usuários únicos e a última mensagem
-    const formattedConversations = await Promise.all(
-      conversations.map(async (conv) => {
-        const otherUserId = conv.senderId === userId ? conv.receiverId : conv.senderId;
+    // Usar um objeto para evitar duplicação de userId
+    const uniqueConversations: Record<number, { userId: number; lastMessage: string; timestamp: Date }> = {};
 
-        // Buscar a última mensagem trocada
-        const lastMessage = await prisma.message.findFirst({
-          where: {
-            OR: [
-              { senderId: userId, receiverId: otherUserId },
-              { senderId: otherUserId, receiverId: userId },
-            ],
-          },
-          orderBy: { timestamp: 'desc' },
-        });
+    for (const message of conversations) {
+      const otherUserId = message.senderId === userId ? message.receiverId : message.senderId;
 
-        return {
-          userId: otherUserId,
-          lastMessage: lastMessage?.content || '',
-          timestamp: lastMessage?.timestamp,
-        };
-      })
-    );
+      // Se a conversa já foi processada, pule
+      if (uniqueConversations[otherUserId]) continue;
+
+      // Adicionar a conversa ao objeto
+      uniqueConversations[otherUserId] = {
+        userId: otherUserId,
+        lastMessage: message.content || '',
+        timestamp: message.timestamp || new Date(),
+      };
+    }
+
+    // Converter o objeto de volta para um array
+    const formattedConversations = Object.values(uniqueConversations);
 
     return reply.send(formattedConversations);
   } catch (err) {
@@ -890,6 +975,59 @@ server.post("/property", async (request: FastifyRequest, reply: FastifyReply) =>
   } catch (err) {
     console.error("Erro ao criar imóvel:", err);
     return reply.status(500).send({ error: "Falha ao criar imóvel. Tente novamente." });
+  }
+});
+
+// Rota para filtragem das propriedades
+server.get('/properties/filter', async (request: FastifyRequest<{ Querystring: { userId: string; teamId: string } }>, reply: FastifyReply) => {
+  console.log("🚀 Rota '/properties/filter' foi chamada!");
+
+  try {
+    const { userId, teamId } = request.query;
+    console.log("🔍 Query recebida:", request.query);
+
+    // Verifica se os parâmetros foram passados
+    if (!userId || !teamId) {
+      console.error("❌ userId ou teamId ausentes!");
+      return reply.status(400).send({ error: "userId e teamId são obrigatórios" });
+    }
+
+    // Converte para número
+    const userIdNumber = Number(userId);
+    const teamIdNumber = Number(teamId);
+
+    console.log("✅ Valores convertidos:", { userIdNumber, teamIdNumber });
+
+    if (isNaN(userIdNumber) || isNaN(teamIdNumber)) {
+      console.error("❌ userId ou teamId não são números válidos!");
+      return reply.status(400).send({ error: "userId e teamId devem ser números válidos" });
+    }
+
+    // Consulta ao banco de dados
+    const properties = await prisma.property.findMany({
+      where: {
+        OR: [
+          { userId: userIdNumber },
+          { user: { teamMemberships: { some: { teamId: teamIdNumber } } } },
+        ],
+      },
+      include: {
+        user: {
+          include: {
+            teamMemberships: {
+              include: { team: true },
+            },
+          },
+        },
+      },
+    });
+
+    console.log("📌 Propriedades encontradas:", properties.length, "itens");
+
+    return reply.send(properties);
+  } catch (error) {
+    console.error("🔥 Erro ao buscar propriedades:", error);
+    return reply.status(500).send({ error: "Erro ao buscar as propriedades" });
   }
 });
 
