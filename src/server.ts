@@ -1276,7 +1276,7 @@ server.delete(
 );
 
 // Iniciar o servidor
-const port = Number(process.env.PORT) || 3000;  // Converte a porta para número
+const port = Number(process.env.PORT) || 3333;  // Converte a porta para número
 server.listen({ port, host: "0.0.0.0" }, (err) => {
   if (err) {
     console.error("Error starting server:", err);
