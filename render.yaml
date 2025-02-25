@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: servercasaperto
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    repo: https://github.com/danielclaytonborgtx/server-2
+    branch: master
+    plan: free
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
