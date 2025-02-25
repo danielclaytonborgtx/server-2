@@ -11,4 +11,4 @@ services:
       - key: PORT
         value: 3000
       - key: DATABASE_URL
-        value: "postgres://usuario:senha@servidor:porta/nome_do_banco"
+        value: "postgresql://casaperto_db_user:4OCoQRRcYqzoiK2fAFGYcru1GzPu9x5L@dpg-cuusq1nnoe9s73anc31g-a.oregon-postgres.render.com/casaperto_db"
