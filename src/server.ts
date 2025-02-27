@@ -31,9 +31,8 @@ server.register(fastifyStatic, {
 
 // Habilitar CORS
 server.register(cors, {
-  origin: ['https://servercasaperto.onrender.com', 'http://localhost:3333'], // Ajuste conforme sua necessidade
+  origin: "*", // Ajuste conforme necessário
 });
-
 
 interface Params {
   id: string; // Ou 'id: number' se for um número
@@ -1108,13 +1107,8 @@ server.get('/property/user', async (request: FastifyRequest<{ Querystring: { use
     // Mapeando os imóveis para incluir as URLs completas das imagens
     const propertiesUrl = properties.map((property) => {
       const updatedImages = property.images.map((image) => {
-        // Verifica se a URL já é completa
-        if (image.url.startsWith('http')) {
-          return image.url; // Retorna a URL completa diretamente
-        } else {
-          // Concatena a base do Render apenas se for um caminho relativo
-          return `https://servercasaperto.onrender.com${image.url}`;
-        }
+        const imageUrl = `http://localhost:3333${image.url}`;
+        return imageUrl; // Retorna a URL completa da imagem
       });
 
       return {
