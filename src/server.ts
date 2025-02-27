@@ -1108,8 +1108,13 @@ server.get('/property/user', async (request: FastifyRequest<{ Querystring: { use
     // Mapeando os imóveis para incluir as URLs completas das imagens
     const propertiesUrl = properties.map((property) => {
       const updatedImages = property.images.map((image) => {
-        const imageUrl = `https://servercasaperto.onrender.com${image.url}`;
-        return imageUrl; // Retorna a URL completa da imagem
+        // Verifica se a URL já é completa
+        if (image.url.startsWith('http')) {
+          return image.url; // Retorna a URL completa diretamente
+        } else {
+          // Concatena a base do Render apenas se for um caminho relativo
+          return `https://servercasaperto.onrender.com${image.url}`;
+        }
       });
 
       return {
