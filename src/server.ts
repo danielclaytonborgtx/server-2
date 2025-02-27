@@ -31,8 +31,9 @@ server.register(fastifyStatic, {
 
 // Habilitar CORS
 server.register(cors, {
-  origin: "*", // Ajuste conforme necessário
+  origin: ['https://servercasaperto.onrender.com', 'http://localhost:3333'], // Ajuste conforme sua necessidade
 });
+
 
 interface Params {
   id: string; // Ou 'id: number' se for um número
