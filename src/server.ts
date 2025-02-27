@@ -483,7 +483,9 @@ server.post("/team", async (request, reply) => {
 server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: FastifyReply) => {
   try {
     const { teamId } = request.params as { teamId: string };
-    const { userId } = request.body as { userId: number }; // Supõe que o userId é enviado no corpo da requisição
+    const { userId } = request.body as { userId: number };
+
+    console.log(`Usuário ${userId} solicitou sair da equipe ${teamId}`);
 
     // Verifica se a equipe existe
     const team = await prisma.team.findUnique({
@@ -492,6 +494,7 @@ server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: Fasti
     });
 
     if (!team) {
+      console.log('Equipe não encontrada.');
       return reply.status(404).send({ error: 'Equipe não encontrada.' });
     }
 
@@ -499,6 +502,7 @@ server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: Fasti
     const isMember = team.members.some((member) => member.userId === userId);
 
     if (!isMember) {
+      console.log('Usuário não é membro da equipe.');
       return reply.status(400).send({ error: 'Usuário não é membro da equipe.' });
     }
 
@@ -508,6 +512,12 @@ server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: Fasti
         teamId: parseInt(teamId),
         userId: userId,
       },
+    });
+
+    // Atualiza o teamId do usuário para null
+    await prisma.user.update({
+      where: { id: userId },
+      data: { teamId: null }, // Certifique-se de que teamId está definido no modelo User
     });
 
     return reply.status(200).send({ message: 'Usuário saiu da equipe com sucesso.' });
@@ -978,37 +988,37 @@ server.post("/property", async (request: FastifyRequest, reply: FastifyReply) =>
   }
 });
 
-// Rota para filtragem das propriedades
-server.get('/properties/filter', async (request: FastifyRequest<{ Querystring: { userId: string; teamId: string } }>, reply: FastifyReply) => {
+// Rota para filtrar imoveis por id e teamId
+server.get('/properties/filter', async (request: FastifyRequest<{ Querystring: { userId: string; teamId?: string } }>, reply: FastifyReply) => {
   console.log("🚀 Rota '/properties/filter' foi chamada!");
 
   try {
     const { userId, teamId } = request.query;
     console.log("🔍 Query recebida:", request.query);
 
-    // Verifica se os parâmetros foram passados
-    if (!userId || !teamId) {
-      console.error("❌ userId ou teamId ausentes!");
-      return reply.status(400).send({ error: "userId e teamId são obrigatórios" });
+    // Verifica se o userId foi passado
+    if (!userId) {
+      console.error("❌ userId ausente!");
+      return reply.status(400).send({ error: "userId é obrigatório" });
     }
 
     // Converte para número
     const userIdNumber = Number(userId);
-    const teamIdNumber = Number(teamId);
+    const teamIdNumber = teamId ? Number(teamId) : null; // teamId é opcional
 
     console.log("✅ Valores convertidos:", { userIdNumber, teamIdNumber });
 
-    if (isNaN(userIdNumber) || isNaN(teamIdNumber)) {
+    if (isNaN(userIdNumber) || (teamId && isNaN(teamIdNumber!))) {
       console.error("❌ userId ou teamId não são números válidos!");
-      return reply.status(400).send({ error: "userId e teamId devem ser números válidos" });
+      return reply.status(400).send({ error: "userId e teamId (se fornecido) devem ser números válidos" });
     }
 
     // Consulta ao banco de dados
     const properties = await prisma.property.findMany({
       where: {
         OR: [
-          { userId: userIdNumber },
-          { user: { teamMemberships: { some: { teamId: teamIdNumber } } } },
+          { userId: userIdNumber }, // Propriedades do usuário
+          ...(teamIdNumber !== null ? [{ user: { teamMemberships: { some: { teamId: teamIdNumber } } } }] : []), // Propriedades da equipe (se teamId for fornecido)
         ],
       },
       include: {
@@ -1019,6 +1029,7 @@ server.get('/properties/filter', async (request: FastifyRequest<{ Querystring: {
             },
           },
         },
+        images: true,
       },
     });
 
@@ -1096,7 +1107,7 @@ server.get('/property/user', async (request: FastifyRequest<{ Querystring: { use
     // Mapeando os imóveis para incluir as URLs completas das imagens
     const propertiesUrl = properties.map((property) => {
       const updatedImages = property.images.map((image) => {
-        const imageUrl = `https://server-2-production.up.railway.app${image.url}`;
+        const imageUrl = `https://servercasaperto.onrender.com${image.url}`;
         return imageUrl; // Retorna a URL completa da imagem
       });
 

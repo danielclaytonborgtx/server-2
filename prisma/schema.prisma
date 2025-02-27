@@ -16,6 +16,7 @@ model User {
   username  String   @unique
   password  String
   picture   String?
+  teamId    Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
