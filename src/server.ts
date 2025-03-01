@@ -361,19 +361,22 @@ server.get('/users', async (request, reply) => {
   }
 });
 
+// Rota para filtrar usuario sem time
 server.get('/users/no-team', async (request, reply) => {
+  console.log('Rota /users/no-team acessada'); // Log de acesso à rota
   try {
     const users = await prisma.user.findMany({
       where: {
         teamMemberships: {
-          none: {} // Garante que o usuário não tenha nenhuma equipe associada
+          none: {}
         },
       },
     });
+    console.log('Usuários sem equipe encontrados:', users); // Log dos usuários encontrados
     return reply.send(users);
   } catch (error) {
-    console.error(error);
-    return reply.status(500).send({ error: 'Failed to fetch users without team' });
+    console.error('Erro na rota /users/no-team:', error); // Log de erro
+    return reply.status(500).send({ error: 'Falha ao buscar usuários sem equipe' });
   }
 });
 
