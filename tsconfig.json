@@ -6,6 +6,10 @@
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
-    "noImplicitAny": false
-  }
+    "noImplicitAny": true, // Habilitado para segurança de tipos
+    "skipLibCheck": true, // Ignora verificação de tipos em bibliotecas
+    "sourceMap": true // Gera source maps para depuração
+  },
+  "include": ["src/**/*"], // Inclui todos os arquivos na pasta src
+  "exclude": ["node_modules", "dist"] // Exclui node_modules e a pasta de saída
 }

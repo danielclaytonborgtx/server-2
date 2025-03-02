@@ -18,7 +18,6 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
-
 Object.defineProperty(exports, "__esModule", { value: true });
 const cors_1 = __importDefault(require("@fastify/cors"));
 const client_1 = require("@prisma/client");
@@ -40,19 +39,16 @@ server.register(multipart_1.default, {
         files: 10,
     },
 });
-
 const uploadsPath = path_1.default.join(__dirname, '../uploads');
 // Registra o plugin para servir arquivos estáticos
 server.register(static_1.default, {
     root: uploadsPath,
     prefix: '/uploads/', // URL base para acessar os arquivos
 });
-
 // Habilitar CORS
 server.register(cors_1.default, {
     origin: "*", // Ajuste conforme necessário
 });
-
 // Esquemas de validação
 const registerSchema = joi_1.default.object({
     name: joi_1.default.string().required(),
@@ -60,12 +56,10 @@ const registerSchema = joi_1.default.object({
     username: joi_1.default.string().min(3).max(30).required(),
     password: joi_1.default.string().min(6).required(),
 });
-
 const loginSchema = joi_1.default.object({
     username: joi_1.default.string().min(3).max(30).required(),
     password: joi_1.default.string().min(6).required(),
 });
-
 const propertySchema = joi_1.default.object({
     title: joi_1.default.string().required(),
     description: joi_1.default.string().required(),
@@ -77,19 +71,16 @@ const propertySchema = joi_1.default.object({
     userId: joi_1.default.number().required(),
     images: joi_1.default.array().min(1).required(),
 });
-
 const messageSchema = joi_1.default.object({
     senderId: joi_1.default.number().required(), // Id do remetente
     receiverId: joi_1.default.number().required(), // Id do destinatário
     content: joi_1.default.string().min(1).required(), // Conteúdo da mensagem
 });
-
 const teamSchema = joi_1.default.object({
     name: joi_1.default.string().required(),
     members: joi_1.default.array().items(joi_1.default.number().integer().required()).min(1).required(),
     imageUrl: joi_1.default.string().uri().optional(), // Validação para a URL da imagem, caso fornecida
 });
-
 // Rota de registro de usuários
 server.post("/users", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     console.log("Requisição recebida:", request.body); // Log da entrada
@@ -127,7 +118,6 @@ server.post("/users", (request, reply) => __awaiter(void 0, void 0, void 0, func
         return reply.status(500).send({ error: "Falha ao criar usuário" });
     }
 }));
-
 // Rota de login via usuário e senha
 server.post("/session", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { error } = loginSchema.validate(request.body);
@@ -136,13 +126,23 @@ server.post("/session", (request, reply) => __awaiter(void 0, void 0, void 0, fu
     }
     const { username, password } = request.body;
     try {
-        const user = yield prisma.user.findUnique({ where: { username } });
+        const user = yield prisma.user.findUnique({
+            where: { username },
+            include: {
+                teamMemberships: {
+                    include: {
+                        team: true, // Incluir o time do usuário
+                    }
+                }
+            }
+        });
         console.log("Usuário encontrado:", user);
         if (!user || !(yield bcrypt_1.default.compare(password, user.password))) {
             console.error("Erro: Usuário ou senha inválidos");
             return reply.status(401).send({ error: "Invalid username or password" });
         }
         // Garantir que o campo picture seja tratado como opcional
+        const userTeam = user.teamMemberships.length > 0 ? user.teamMemberships[0].team : null;
         return reply.send({
             message: "Login successful",
             user: {
@@ -150,7 +150,8 @@ server.post("/session", (request, reply) => __awaiter(void 0, void 0, void 0, fu
                 name: user.name,
                 email: user.email,
                 username: user.username,
-                picture: user.picture || null, // Definir como null se não houver imagem
+                picture: user.picture || null,
+                team: userTeam, // Incluindo a equipe do usuário
             },
         });
     }
@@ -159,7 +160,6 @@ server.post("/session", (request, reply) => __awaiter(void 0, void 0, void 0, fu
         return reply.status(500).send({ error: "Falha ao fazer login" });
     }
 }));
-
 // Rota para atualizar a imagem de perfil do usuário
 server.post("/users/:id/profile-picture", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_1, _b, _c;
@@ -209,7 +209,6 @@ server.post("/users/:id/profile-picture", (request, reply) => __awaiter(void 0, 
         return reply.status(500).send({ error: "Falha ao atualizar a imagem de perfil. Tente novamente." });
     }
 }));
-
 // Rota para obter a imagem de perfil do usuário
 server.get("/users/:id/profile-picture", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -234,7 +233,6 @@ server.get("/users/:id/profile-picture", (request, reply) => __awaiter(void 0, v
         return reply.status(500).send({ error: "Falha ao carregar imagem de perfil." });
     }
 }));
-
 // Rota de login com Google (ID Token)
 server.post("/google-login", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { id_token } = request.body;
@@ -269,11 +267,18 @@ server.post("/google-login", (request, reply) => __awaiter(void 0, void 0, void 
         return reply.status(500).send({ error: 'Erro no login com o Google' });
     }
 }));
-
 // Rota de buscar todos usuários
 server.get('/users', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const users = yield prisma.user.findMany(); // Busca todos os usuários no banco
+        const users = yield prisma.user.findMany({
+            include: {
+                teamMemberships: {
+                    include: {
+                        team: true, // Inclui os dados das equipes
+                    },
+                },
+            },
+        });
         return reply.send(users);
     }
     catch (error) {
@@ -281,26 +286,25 @@ server.get('/users', (request, reply) => __awaiter(void 0, void 0, void 0, funct
         return reply.status(500).send({ error: 'Failed to fetch users' });
     }
 }));
-
-// Rota para ver corretores sem equipe
-server.get('/users/no-team', async (request, reply) => {
+// Rota para filtrar usuario sem time
+server.get('/users/no-team', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     console.log('Rota /users/no-team acessada'); // Log de acesso à rota
     try {
-      const users = await prisma.user.findMany({
-        where: {
-          teamMemberships: {
-            none: {}
-          },
-        },
-      });
-      console.log('Usuários sem equipe encontrados:', users); // Log dos usuários encontrados
-      return reply.send(users);
-    } catch (error) {
-      console.error('Erro na rota /users/no-team:', error); // Log de erro
-      return reply.status(500).send({ error: 'Falha ao buscar usuários sem equipe' });
+        const users = yield prisma.user.findMany({
+            where: {
+                teamMemberships: {
+                    none: {}
+                },
+            },
+        });
+        console.log('Usuários sem equipe encontrados:', users); // Log dos usuários encontrados
+        return reply.send(users);
     }
-  });
-
+    catch (error) {
+        console.error('Erro na rota /users/no-team:', error); // Log de erro
+        return reply.status(500).send({ error: 'Falha ao buscar usuários sem equipe' });
+    }
+}));
 // Rota de buscar usuário por ID e username
 server.get('/users/:identifier', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { identifier } = request.params;
@@ -324,7 +328,6 @@ server.get('/users/:identifier', (request, reply) => __awaiter(void 0, void 0, v
         return reply.status(500).send({ error: 'Failed to fetch user' });
     }
 }));
-
 // Rota para criar equipes
 server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_2, _b, _c;
@@ -405,7 +408,45 @@ server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, funct
         return reply.status(500).send({ error: "Falha ao criar equipe. Tente novamente." });
     }
 }));
-
+server.post('/teams/:teamId/leave', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { teamId } = request.params;
+        const { userId } = request.body;
+        console.log(`Usuário ${userId} solicitou sair da equipe ${teamId}`);
+        // Verifica se a equipe existe
+        const team = yield prisma.team.findUnique({
+            where: { id: parseInt(teamId) },
+            include: { members: true },
+        });
+        if (!team) {
+            console.log('Equipe não encontrada.');
+            return reply.status(404).send({ error: 'Equipe não encontrada.' });
+        }
+        // Verifica se o usuário é membro da equipe
+        const isMember = team.members.some((member) => member.userId === userId);
+        if (!isMember) {
+            console.log('Usuário não é membro da equipe.');
+            return reply.status(400).send({ error: 'Usuário não é membro da equipe.' });
+        }
+        // Remove o usuário da equipe
+        yield prisma.teamMember.deleteMany({
+            where: {
+                teamId: parseInt(teamId),
+                userId: userId,
+            },
+        });
+        // Atualiza o teamId do usuário para null
+        yield prisma.user.update({
+            where: { id: userId },
+            data: { teamId: null }, // Certifique-se de que teamId está definido no modelo User
+        });
+        return reply.status(200).send({ message: 'Usuário saiu da equipe com sucesso.' });
+    }
+    catch (error) {
+        console.error('Erro ao deixar a equipe:', error);
+        return reply.status(500).send({ error: 'Erro ao deixar a equipe.' });
+    }
+}));
 // Rota para ver equipe
 server.get('/team', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
@@ -441,7 +482,6 @@ server.get('/team', (request, reply) => __awaiter(void 0, void 0, void 0, functi
         }
     }
 }));
-
 // Rota para editar uma equipe existente
 server.put('/team/:id', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_3, _b, _c;
@@ -540,8 +580,7 @@ server.put('/team/:id', (request, reply) => __awaiter(void 0, void 0, void 0, fu
         }
     }
 }));
-
-
+// Rota para encontrar uma equipe especifica
 server.get('/team/:id', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const teamId = parseInt(request.params.id); // Convertendo id para número
@@ -587,7 +626,6 @@ server.get('/team/:id', (request, reply) => __awaiter(void 0, void 0, void 0, fu
         }
     }
 }));
-
 // Rota para buscar todas as equipes
 server.get('/teams', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -595,65 +633,63 @@ server.get('/teams', (request, reply) => __awaiter(void 0, void 0, void 0, funct
             include: {
                 members: {
                     include: {
-                        user: true,
+                        user: true, // Inclui o usuário do membro
                     },
                 },
             },
         });
-        return reply.send(teams);
+        // Adiciona o creatorId à equipe (usando o primeiro membro como criador)
+        const teamsWithCreator = teams.map((team) => {
+            var _a;
+            const creatorId = (_a = team.members[0]) === null || _a === void 0 ? void 0 : _a.userId; // Considera o primeiro membro como criador
+            return Object.assign(Object.assign({}, team), { creatorId });
+        });
+        return reply.send(teamsWithCreator);
     }
     catch (error) {
         console.error(error);
         return reply.status(500).send({ error: 'Erro ao buscar todas as equipes' });
     }
 }));
-
 // Rota para deletar equipe
-server.delete('/team/:id', async (request, reply) => {
+server.delete('/team/:id', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-      const teamId = Number(request.params.id);
-      if (isNaN(teamId)) {
-        return reply.status(400).send({ error: 'ID inválido.' });
-      }
-  
-      console.log(`Tentando excluir a equipe com ID: ${teamId}`);
-  
-      // Verifica se o time existe antes de deletar
-      const existingTeam = await prisma.team.findUnique({
-        where: { id: teamId },
-      });
-  
-      if (!existingTeam) {
-        console.error(`Equipe com ID ${teamId} não encontrada.`);
-        return reply.status(404).send({ error: 'Equipe não encontrada.' });
-      }
-  
-      // Primeiro, deletamos os registros relacionados em TeamMember
-      await prisma.teamMember.deleteMany({
-        where: { teamId: teamId },
-      });
-  
-      console.log(`Membros da equipe ${teamId} deletados.`);
-  
-      // Agora, podemos deletar a equipe
-      await prisma.team.delete({
-        where: { id: teamId },
-      });
-  
-      console.log(`Equipe com ID ${teamId} excluída com sucesso.`);
-      reply.status(200).send({ message: 'Equipe deletada com sucesso.' });
-  
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error('Erro ao deletar a equipe:', error.message);
-        reply.status(500).send({ error: 'Erro ao deletar a equipe', details: error.message });
-      } else {
-        console.error('Erro desconhecido:', error);
-        reply.status(500).send({ error: 'Erro ao deletar a equipe' });
-      }
+        const teamId = Number(request.params.id);
+        if (isNaN(teamId)) {
+            return reply.status(400).send({ error: 'ID inválido.' });
+        }
+        console.log(`Tentando excluir a equipe com ID: ${teamId}`);
+        // Verifica se o time existe antes de deletar
+        const existingTeam = yield prisma.team.findUnique({
+            where: { id: teamId },
+        });
+        if (!existingTeam) {
+            console.error(`Equipe com ID ${teamId} não encontrada.`);
+            return reply.status(404).send({ error: 'Equipe não encontrada.' });
+        }
+        // Primeiro, deletamos os registros relacionados em TeamMember
+        yield prisma.teamMember.deleteMany({
+            where: { teamId: teamId },
+        });
+        console.log(`Membros da equipe ${teamId} deletados.`);
+        // Agora, podemos deletar a equipe
+        yield prisma.team.delete({
+            where: { id: teamId },
+        });
+        console.log(`Equipe com ID ${teamId} excluída com sucesso.`);
+        reply.status(200).send({ message: 'Equipe deletada com sucesso.' });
     }
-  });
-
+    catch (error) {
+        if (error instanceof Error) {
+            console.error('Erro ao deletar a equipe:', error.message);
+            reply.status(500).send({ error: 'Erro ao deletar a equipe', details: error.message });
+        }
+        else {
+            console.error('Erro desconhecido:', error);
+            reply.status(500).send({ error: 'Erro ao deletar a equipe' });
+        }
+    }
+}));
 // Rota para enviar mensagem
 server.post('/messages', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { senderId, receiverId, content } = request.body;
@@ -678,7 +714,6 @@ server.post('/messages', (request, reply) => __awaiter(void 0, void 0, void 0, f
         return reply.status(500).send({ error: 'Falha ao enviar a mensagem.' });
     }
 }));
-
 // Rota para buscar mensagens entre dois usuários
 server.get('/messages', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { senderId, receiverId } = request.query;
@@ -709,7 +744,6 @@ server.get('/messages', (request, reply) => __awaiter(void 0, void 0, void 0, fu
         return reply.status(500).send({ error: 'Falha ao buscar as mensagens' });
     }
 }));
-
 // Rota para buscar mensagens de um usuário específico
 server.get('/messages/:userId', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const userId = parseInt(request.params.userId, 10);
@@ -730,7 +764,6 @@ server.get('/messages/:userId', (request, reply) => __awaiter(void 0, void 0, vo
         return reply.status(500).send({ error: 'Falha ao buscar mensagens' });
     }
 }));
-
 // Rota para buscar a lista de conversas únicas do usuário
 server.get('/messages/conversations/:userId', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const userId = parseInt(request.params.userId, 10);
@@ -738,32 +771,29 @@ server.get('/messages/conversations/:userId', (request, reply) => __awaiter(void
         return reply.status(400).send({ error: 'ID inválido' });
     }
     try {
-        const conversations = yield prisma.message.groupBy({
-            by: ['senderId', 'receiverId'],
+        // Buscar todas as conversas do usuário
+        const conversations = yield prisma.message.findMany({
             where: {
                 OR: [{ senderId: userId }, { receiverId: userId }],
             },
-            _max: { timestamp: true },
+            orderBy: { timestamp: 'desc' }, // Ordenar por timestamp para pegar a última mensagem primeiro
         });
-        // Formatar o retorno para exibir os usuários únicos e a última mensagem
-        const formattedConversations = yield Promise.all(conversations.map((conv) => __awaiter(void 0, void 0, void 0, function* () {
-            const otherUserId = conv.senderId === userId ? conv.receiverId : conv.senderId;
-            // Buscar a última mensagem trocada
-            const lastMessage = yield prisma.message.findFirst({
-                where: {
-                    OR: [
-                        { senderId: userId, receiverId: otherUserId },
-                        { senderId: otherUserId, receiverId: userId },
-                    ],
-                },
-                orderBy: { timestamp: 'desc' },
-            });
-            return {
+        // Usar um objeto para evitar duplicação de userId
+        const uniqueConversations = {};
+        for (const message of conversations) {
+            const otherUserId = message.senderId === userId ? message.receiverId : message.senderId;
+            // Se a conversa já foi processada, pule
+            if (uniqueConversations[otherUserId])
+                continue;
+            // Adicionar a conversa ao objeto
+            uniqueConversations[otherUserId] = {
                 userId: otherUserId,
-                lastMessage: (lastMessage === null || lastMessage === void 0 ? void 0 : lastMessage.content) || '',
-                timestamp: lastMessage === null || lastMessage === void 0 ? void 0 : lastMessage.timestamp,
+                lastMessage: message.content || '',
+                timestamp: message.timestamp || new Date(),
             };
-        })));
+        }
+        // Converter o objeto de volta para um array
+        const formattedConversations = Object.values(uniqueConversations);
         return reply.send(formattedConversations);
     }
     catch (err) {
@@ -771,7 +801,6 @@ server.get('/messages/conversations/:userId', (request, reply) => __awaiter(void
         return reply.status(500).send({ error: 'Falha ao buscar conversas' });
     }
 }));
-
 // Rota para adicionar imóveis
 server.post("/property", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_4, _b, _c;
@@ -854,7 +883,52 @@ server.post("/property", (request, reply) => __awaiter(void 0, void 0, void 0, f
         return reply.status(500).send({ error: "Falha ao criar imóvel. Tente novamente." });
     }
 }));
-
+// Rota para filtrar imoveis por id e teamId
+server.get('/properties/filter', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
+    console.log("🚀 Rota '/properties/filter' foi chamada!");
+    try {
+        const { userId, teamId } = request.query;
+        console.log("🔍 Query recebida:", request.query);
+        // Verifica se o userId foi passado
+        if (!userId) {
+            console.error("❌ userId ausente!");
+            return reply.status(400).send({ error: "userId é obrigatório" });
+        }
+        // Converte para número
+        const userIdNumber = Number(userId);
+        const teamIdNumber = teamId ? Number(teamId) : null; // teamId é opcional
+        console.log("✅ Valores convertidos:", { userIdNumber, teamIdNumber });
+        if (isNaN(userIdNumber) || (teamId && isNaN(teamIdNumber))) {
+            console.error("❌ userId ou teamId não são números válidos!");
+            return reply.status(400).send({ error: "userId e teamId (se fornecido) devem ser números válidos" });
+        }
+        // Consulta ao banco de dados
+        const properties = yield prisma.property.findMany({
+            where: {
+                OR: [
+                    { userId: userIdNumber }, // Propriedades do usuário
+                    ...(teamIdNumber !== null ? [{ user: { teamMemberships: { some: { teamId: teamIdNumber } } } }] : []), // Propriedades da equipe (se teamId for fornecido)
+                ],
+            },
+            include: {
+                user: {
+                    include: {
+                        teamMemberships: {
+                            include: { team: true },
+                        },
+                    },
+                },
+                images: true,
+            },
+        });
+        console.log("📌 Propriedades encontradas:", properties.length, "itens");
+        return reply.send(properties);
+    }
+    catch (error) {
+        console.error("🔥 Erro ao buscar propriedades:", error);
+        return reply.status(500).send({ error: "Erro ao buscar as propriedades" });
+    }
+}));
 // Rota para listar imóveis
 server.get("/property", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -881,7 +955,6 @@ server.get("/property", (request, reply) => __awaiter(void 0, void 0, void 0, fu
         return reply.status(500).send({ error: "Falha ao buscar imóveis" });
     }
 }));
-
 // Rota para listar imóveis do usuário
 server.get('/property/user', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { userId } = request.query;
@@ -908,7 +981,7 @@ server.get('/property/user', (request, reply) => __awaiter(void 0, void 0, void 
         // Mapeando os imóveis para incluir as URLs completas das imagens
         const propertiesUrl = properties.map((property) => {
             const updatedImages = property.images.map((image) => {
-                const imageUrl = `https://servercasaperto.onrender.com${image.url}`;
+                const imageUrl = `http://localhost:3333${image.url}`;
                 return imageUrl; // Retorna a URL completa da imagem
             });
             return Object.assign(Object.assign({}, property), { images: updatedImages, username: property.user.username });
@@ -920,7 +993,6 @@ server.get('/property/user', (request, reply) => __awaiter(void 0, void 0, void 
         return reply.status(500).send({ error: 'Falha ao buscar imóveis' });
     }
 }));
-
 // Rota para obter detalhes de um imóvel específico
 server.get("/property/:id", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -945,7 +1017,6 @@ server.get("/property/:id", (request, reply) => __awaiter(void 0, void 0, void 0
         return reply.status(500).send({ error: "Falha ao buscar imóvel. Tente novamente." });
     }
 }));
-
 // Rota para editar imóveis
 server.put("/property/:id", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_5, _b, _c;
@@ -1015,7 +1086,6 @@ server.put("/property/:id", (request, reply) => __awaiter(void 0, void 0, void 0
         return reply.status(500).send({ error: "Falha ao atualizar imóvel. Tente novamente." });
     }
 }));
-
 // Rota para deletar um imóvel
 server.delete("/property/:id", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = request.params;
@@ -1051,12 +1121,13 @@ server.delete("/property/:id", (request, reply) => __awaiter(void 0, void 0, voi
         return reply.status(500).send({ error: "Falha ao deletar imóvel" });
     }
 }));
-
 // Iniciar o servidor
-server.listen({ port: 3333, host: "0.0.0.0" }, (err) => {
+const port = Number(process.env.PORT) || 3333; // Converte a porta para número
+server.listen({ port, host: "0.0.0.0" }, (err) => {
     if (err) {
         console.error("Error starting server:", err);
         process.exit(1);
     }
-    console.log("Server listening at http://0.0.0.0:3333");
+    console.log(`Server listening at http://0.0.0.0:${port}`);
 });
+//# sourceMappingURL=server.js.map
