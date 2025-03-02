@@ -285,7 +285,7 @@ server.get('/users/no-team', async (request, reply) => {
       return reply.status(500).send({ error: 'Falha ao buscar usuários sem equipe' });
     }
   });
-  
+
 // Rota de buscar usuário por ID e username
 server.get('/users/:identifier', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { identifier } = request.params;
@@ -586,6 +586,53 @@ server.get('/teams', (request, reply) => __awaiter(void 0, void 0, void 0, funct
         return reply.status(500).send({ error: 'Erro ao buscar todas as equipes' });
     }
 }));
+
+// Rota para deletar equipe
+server.delete('/team/:id', async (request, reply) => {
+    try {
+      const teamId = Number(request.params.id);
+      if (isNaN(teamId)) {
+        return reply.status(400).send({ error: 'ID inválido.' });
+      }
+  
+      console.log(`Tentando excluir a equipe com ID: ${teamId}`);
+  
+      // Verifica se o time existe antes de deletar
+      const existingTeam = await prisma.team.findUnique({
+        where: { id: teamId },
+      });
+  
+      if (!existingTeam) {
+        console.error(`Equipe com ID ${teamId} não encontrada.`);
+        return reply.status(404).send({ error: 'Equipe não encontrada.' });
+      }
+  
+      // Primeiro, deletamos os registros relacionados em TeamMember
+      await prisma.teamMember.deleteMany({
+        where: { teamId: teamId },
+      });
+  
+      console.log(`Membros da equipe ${teamId} deletados.`);
+  
+      // Agora, podemos deletar a equipe
+      await prisma.team.delete({
+        where: { id: teamId },
+      });
+  
+      console.log(`Equipe com ID ${teamId} excluída com sucesso.`);
+      reply.status(200).send({ message: 'Equipe deletada com sucesso.' });
+  
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error('Erro ao deletar a equipe:', error.message);
+        reply.status(500).send({ error: 'Erro ao deletar a equipe', details: error.message });
+      } else {
+        console.error('Erro desconhecido:', error);
+        reply.status(500).send({ error: 'Erro ao deletar a equipe' });
+      }
+    }
+  });
+
 // Rota para enviar mensagem
 server.post('/messages', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { senderId, receiverId, content } = request.body;
