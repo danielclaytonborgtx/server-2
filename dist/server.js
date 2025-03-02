@@ -18,6 +18,7 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
+
 Object.defineProperty(exports, "__esModule", { value: true });
 const cors_1 = __importDefault(require("@fastify/cors"));
 const client_1 = require("@prisma/client");
@@ -39,16 +40,19 @@ server.register(multipart_1.default, {
         files: 10,
     },
 });
+
 const uploadsPath = path_1.default.join(__dirname, '../uploads');
 // Registra o plugin para servir arquivos estáticos
 server.register(static_1.default, {
     root: uploadsPath,
     prefix: '/uploads/', // URL base para acessar os arquivos
 });
+
 // Habilitar CORS
 server.register(cors_1.default, {
     origin: "*", // Ajuste conforme necessário
 });
+
 // Esquemas de validação
 const registerSchema = joi_1.default.object({
     name: joi_1.default.string().required(),
@@ -56,10 +60,12 @@ const registerSchema = joi_1.default.object({
     username: joi_1.default.string().min(3).max(30).required(),
     password: joi_1.default.string().min(6).required(),
 });
+
 const loginSchema = joi_1.default.object({
     username: joi_1.default.string().min(3).max(30).required(),
     password: joi_1.default.string().min(6).required(),
 });
+
 const propertySchema = joi_1.default.object({
     title: joi_1.default.string().required(),
     description: joi_1.default.string().required(),
@@ -71,16 +77,19 @@ const propertySchema = joi_1.default.object({
     userId: joi_1.default.number().required(),
     images: joi_1.default.array().min(1).required(),
 });
+
 const messageSchema = joi_1.default.object({
     senderId: joi_1.default.number().required(), // Id do remetente
     receiverId: joi_1.default.number().required(), // Id do destinatário
     content: joi_1.default.string().min(1).required(), // Conteúdo da mensagem
 });
+
 const teamSchema = joi_1.default.object({
     name: joi_1.default.string().required(),
     members: joi_1.default.array().items(joi_1.default.number().integer().required()).min(1).required(),
     imageUrl: joi_1.default.string().uri().optional(), // Validação para a URL da imagem, caso fornecida
 });
+
 // Rota de registro de usuários
 server.post("/users", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     console.log("Requisição recebida:", request.body); // Log da entrada
@@ -118,6 +127,7 @@ server.post("/users", (request, reply) => __awaiter(void 0, void 0, void 0, func
         return reply.status(500).send({ error: "Falha ao criar usuário" });
     }
 }));
+
 // Rota de login via usuário e senha
 server.post("/session", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { error } = loginSchema.validate(request.body);
@@ -149,6 +159,7 @@ server.post("/session", (request, reply) => __awaiter(void 0, void 0, void 0, fu
         return reply.status(500).send({ error: "Falha ao fazer login" });
     }
 }));
+
 // Rota para atualizar a imagem de perfil do usuário
 server.post("/users/:id/profile-picture", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_1, _b, _c;
@@ -198,6 +209,7 @@ server.post("/users/:id/profile-picture", (request, reply) => __awaiter(void 0, 
         return reply.status(500).send({ error: "Falha ao atualizar a imagem de perfil. Tente novamente." });
     }
 }));
+
 // Rota para obter a imagem de perfil do usuário
 server.get("/users/:id/profile-picture", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -222,6 +234,7 @@ server.get("/users/:id/profile-picture", (request, reply) => __awaiter(void 0, v
         return reply.status(500).send({ error: "Falha ao carregar imagem de perfil." });
     }
 }));
+
 // Rota de login com Google (ID Token)
 server.post("/google-login", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { id_token } = request.body;
@@ -256,6 +269,7 @@ server.post("/google-login", (request, reply) => __awaiter(void 0, void 0, void 
         return reply.status(500).send({ error: 'Erro no login com o Google' });
     }
 }));
+
 // Rota de buscar todos usuários
 server.get('/users', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -268,6 +282,7 @@ server.get('/users', (request, reply) => __awaiter(void 0, void 0, void 0, funct
     }
 }));
 
+// Rota para ver corretores sem equipe
 server.get('/users/no-team', async (request, reply) => {
     console.log('Rota /users/no-team acessada'); // Log de acesso à rota
     try {
@@ -311,81 +326,86 @@ server.get('/users/:identifier', (request, reply) => __awaiter(void 0, void 0, v
 }));
 
 // Rota para criar equipes
-server.post("/team", async (request, reply) => {
+server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, e_2, _b, _c;
     try {
-      const parts = request.parts(); // Processa arquivos e campos multipart
-      let teamImageUrl= "";
-      let teamName = "";
-      let members,[] = [];
-  
-      console.log("🔄 Iniciando processamento do request...");
-  
-      for await (const part of parts) {
-        console.log("📦 Processando parte:", part.fieldname);
-  
-        if (part.type === "file") {
-          console.log("🖼️ Recebendo arquivo:", part.filename);
-  
-          const uploadDir = path.join(__dirname, '../uploads');  // Caminho correto para a pasta uploads na raiz
-          if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-          }
-  
-          const fileName = `${Date.now()}_${part.filename}`;
-          const filePath = path.join(uploadDir, fileName);
-          teamImageUrl = `/uploads/${fileName}`.replace(/\/+/g, "/"); // Ajustando a URL para a pasta correta
-  
-          console.log("📂 Salvando arquivo em:", filePath);
-          console.log("🌐 URL gerada:", teamImageUrl);
-  
-          // Verifique se o arquivo está sendo gravado corretamente
-          await pump(part.file, fs.createWriteStream(filePath));
-  
-          console.log("✅ Arquivo salvo com sucesso!");
-        } else if (part.fieldname === "name") {
-          teamName = typeof part.value === "string" ? part.value : String(part.value);
-          console.log("📛 Nome da equipe recebido:", teamName);
-        } else if (part.fieldname === "members") {
-          try {
-            const parsedMembers = JSON.parse(String(part.value)); // Parse do campo 'members' como JSON
-            if (Array.isArray(parsedMembers)) {
-              members = parsedMembers.map((id) => Number(id));
-              console.log("👥 Membros recebidos:", members);
+        const parts = request.parts(); // Processa arquivos e campos multipart
+        let teamImageUrl = "";
+        let teamName = "";
+        let members = [];
+        console.log("🔄 Iniciando processamento do request...");
+        try {
+            for (var _d = true, parts_2 = __asyncValues(parts), parts_2_1; parts_2_1 = yield parts_2.next(), _a = parts_2_1.done, !_a; _d = true) {
+                _c = parts_2_1.value;
+                _d = false;
+                const part = _c;
+                console.log("📦 Processando parte:", part.fieldname);
+                if (part.type === "file") {
+                    console.log("🖼️ Recebendo arquivo:", part.filename);
+                    const uploadDir = path_1.default.join(__dirname, '../uploads'); // Caminho correto para a pasta uploads na raiz
+                    if (!fs_1.default.existsSync(uploadDir)) {
+                        fs_1.default.mkdirSync(uploadDir, { recursive: true });
+                    }
+                    const fileName = `${Date.now()}_${part.filename}`;
+                    const filePath = path_1.default.join(uploadDir, fileName);
+                    teamImageUrl = `/uploads/${fileName}`.replace(/\/+/g, "/"); // Ajustando a URL para a pasta correta
+                    console.log("📂 Salvando arquivo em:", filePath);
+                    console.log("🌐 URL gerada:", teamImageUrl);
+                    // Verifique se o arquivo está sendo gravado corretamente
+                    yield (0, pump_1.default)(part.file, fs_1.default.createWriteStream(filePath));
+                    console.log("✅ Arquivo salvo com sucesso!");
+                }
+                else if (part.fieldname === "name") {
+                    teamName = typeof part.value === "string" ? part.value : String(part.value);
+                    console.log("📛 Nome da equipe recebido:", teamName);
+                }
+                else if (part.fieldname === "members") {
+                    try {
+                        const parsedMembers = JSON.parse(String(part.value)); // Parse do campo 'members' como JSON
+                        if (Array.isArray(parsedMembers)) {
+                            members = parsedMembers.map((id) => Number(id));
+                            console.log("👥 Membros recebidos:", members);
+                        }
+                    }
+                    catch (err) {
+                        console.error("❌ Erro ao processar membros:", err);
+                        return reply.status(400).send({ error: "Formato de membros inválido." });
+                    }
+                }
             }
-          } catch (err) {
-            console.error("❌ Erro ao processar membros:", err);
-            return reply.status(400).send({ error: "Formato de membros inválido." });
-          }
         }
-      }
-  
-      // Verificação dos campos obrigatórios
-      if (!teamName || members.length === 0) {
-        console.error("❌ Erro: Nome da equipe e membros são obrigatórios.");
-        return reply.status(400).send({ error: "Nome da equipe e membros são obrigatórios." });
-      }
-  
-      console.log("🛠️ Criando equipe no banco de dados...");
-      const newTeam = await prisma.team.create({
-        data: { name: teamName, imageUrl: teamImageUrl },
-      });
-  
-      console.log("🛠️ Associando membros à equipe...");
-      await prisma.teamMember.createMany({
-        data: members.map((userId) => ({
-          teamId: newTeam.id,
-          userId,
-        })),
-      });
-  
-      console.log("🎉 Equipe criada com sucesso!", newTeam);
-      return reply.status(201).send({ message: "Equipe criada com sucesso!", team: newTeam });
-  
-    } catch (err) {
-      console.error("❌ Erro ao criar equipe:", err);
-      return reply.status(500).send({ error: "Falha ao criar equipe. Tente novamente." });
+        catch (e_2_1) { e_2 = { error: e_2_1 }; }
+        finally {
+            try {
+                if (!_d && !_a && (_b = parts_2.return)) yield _b.call(parts_2);
+            }
+            finally { if (e_2) throw e_2.error; }
+        }
+        // Verificação dos campos obrigatórios
+        if (!teamName || members.length === 0) {
+            console.error("❌ Erro: Nome da equipe e membros são obrigatórios.");
+            return reply.status(400).send({ error: "Nome da equipe e membros são obrigatórios." });
+        }
+        console.log("🛠️ Criando equipe no banco de dados...");
+        const newTeam = yield prisma.team.create({
+            data: { name: teamName, imageUrl: teamImageUrl },
+        });
+        console.log("🛠️ Associando membros à equipe...");
+        yield prisma.teamMember.createMany({
+            data: members.map((userId) => ({
+                teamId: newTeam.id,
+                userId,
+            })),
+        });
+        console.log("🎉 Equipe criada com sucesso!", newTeam);
+        return reply.status(201).send({ message: "Equipe criada com sucesso!", team: newTeam });
     }
-  });
+    catch (err) {
+        console.error("❌ Erro ao criar equipe:", err);
+        return reply.status(500).send({ error: "Falha ao criar equipe. Tente novamente." });
+    }
+}));
+
 // Rota para ver equipe
 server.get('/team', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
@@ -421,6 +441,7 @@ server.get('/team', (request, reply) => __awaiter(void 0, void 0, void 0, functi
         }
     }
 }));
+
 // Rota para editar uma equipe existente
 server.put('/team/:id', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_3, _b, _c;
@@ -519,6 +540,8 @@ server.put('/team/:id', (request, reply) => __awaiter(void 0, void 0, void 0, fu
         }
     }
 }));
+
+
 server.get('/team/:id', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const teamId = parseInt(request.params.id); // Convertendo id para número
@@ -564,6 +587,7 @@ server.get('/team/:id', (request, reply) => __awaiter(void 0, void 0, void 0, fu
         }
     }
 }));
+
 // Rota para buscar todas as equipes
 server.get('/teams', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -654,6 +678,7 @@ server.post('/messages', (request, reply) => __awaiter(void 0, void 0, void 0, f
         return reply.status(500).send({ error: 'Falha ao enviar a mensagem.' });
     }
 }));
+
 // Rota para buscar mensagens entre dois usuários
 server.get('/messages', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { senderId, receiverId } = request.query;
@@ -684,6 +709,7 @@ server.get('/messages', (request, reply) => __awaiter(void 0, void 0, void 0, fu
         return reply.status(500).send({ error: 'Falha ao buscar as mensagens' });
     }
 }));
+
 // Rota para buscar mensagens de um usuário específico
 server.get('/messages/:userId', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const userId = parseInt(request.params.userId, 10);
@@ -704,6 +730,7 @@ server.get('/messages/:userId', (request, reply) => __awaiter(void 0, void 0, vo
         return reply.status(500).send({ error: 'Falha ao buscar mensagens' });
     }
 }));
+
 // Rota para buscar a lista de conversas únicas do usuário
 server.get('/messages/conversations/:userId', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const userId = parseInt(request.params.userId, 10);
@@ -744,6 +771,7 @@ server.get('/messages/conversations/:userId', (request, reply) => __awaiter(void
         return reply.status(500).send({ error: 'Falha ao buscar conversas' });
     }
 }));
+
 // Rota para adicionar imóveis
 server.post("/property", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_4, _b, _c;
@@ -826,6 +854,7 @@ server.post("/property", (request, reply) => __awaiter(void 0, void 0, void 0, f
         return reply.status(500).send({ error: "Falha ao criar imóvel. Tente novamente." });
     }
 }));
+
 // Rota para listar imóveis
 server.get("/property", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -852,6 +881,7 @@ server.get("/property", (request, reply) => __awaiter(void 0, void 0, void 0, fu
         return reply.status(500).send({ error: "Falha ao buscar imóveis" });
     }
 }));
+
 // Rota para listar imóveis do usuário
 server.get('/property/user', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { userId } = request.query;
@@ -878,7 +908,7 @@ server.get('/property/user', (request, reply) => __awaiter(void 0, void 0, void 
         // Mapeando os imóveis para incluir as URLs completas das imagens
         const propertiesUrl = properties.map((property) => {
             const updatedImages = property.images.map((image) => {
-                const imageUrl = `https://server-2-production.up.railway.app${image.url}`;
+                const imageUrl = `https://servercasaperto.onrender.com${image.url}`;
                 return imageUrl; // Retorna a URL completa da imagem
             });
             return Object.assign(Object.assign({}, property), { images: updatedImages, username: property.user.username });
@@ -890,6 +920,7 @@ server.get('/property/user', (request, reply) => __awaiter(void 0, void 0, void 
         return reply.status(500).send({ error: 'Falha ao buscar imóveis' });
     }
 }));
+
 // Rota para obter detalhes de um imóvel específico
 server.get("/property/:id", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -914,6 +945,7 @@ server.get("/property/:id", (request, reply) => __awaiter(void 0, void 0, void 0
         return reply.status(500).send({ error: "Falha ao buscar imóvel. Tente novamente." });
     }
 }));
+
 // Rota para editar imóveis
 server.put("/property/:id", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_5, _b, _c;
@@ -983,6 +1015,7 @@ server.put("/property/:id", (request, reply) => __awaiter(void 0, void 0, void 0
         return reply.status(500).send({ error: "Falha ao atualizar imóvel. Tente novamente." });
     }
 }));
+
 // Rota para deletar um imóvel
 server.delete("/property/:id", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = request.params;
@@ -1018,6 +1051,7 @@ server.delete("/property/:id", (request, reply) => __awaiter(void 0, void 0, voi
         return reply.status(500).send({ error: "Falha ao deletar imóvel" });
     }
 }));
+
 // Iniciar o servidor
 server.listen({ port: 3333, host: "0.0.0.0" }, (err) => {
     if (err) {
