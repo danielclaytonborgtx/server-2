@@ -267,6 +267,25 @@ server.get('/users', (request, reply) => __awaiter(void 0, void 0, void 0, funct
         return reply.status(500).send({ error: 'Failed to fetch users' });
     }
 }));
+
+server.get('/users/no-team', async (request, reply) => {
+    console.log('Rota /users/no-team acessada'); // Log de acesso à rota
+    try {
+      const users = await prisma.user.findMany({
+        where: {
+          teamMemberships: {
+            none: {}
+          },
+        },
+      });
+      console.log('Usuários sem equipe encontrados:', users); // Log dos usuários encontrados
+      return reply.send(users);
+    } catch (error) {
+      console.error('Erro na rota /users/no-team:', error); // Log de erro
+      return reply.status(500).send({ error: 'Falha ao buscar usuários sem equipe' });
+    }
+  });
+  
 // Rota de buscar usuário por ID e username
 server.get('/users/:identifier', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { identifier } = request.params;
