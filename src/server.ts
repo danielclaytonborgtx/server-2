@@ -367,9 +367,7 @@ server.get('/users/no-team', async (request, reply) => {
   try {
     const users = await prisma.user.findMany({
       where: {
-        teamMemberships: {
-          none: {}
-        },
+        teamId: null, // Filtra usuários sem equipe
       },
     });
     console.log('Usuários sem equipe encontrados:', users); // Log dos usuários encontrados
