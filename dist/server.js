@@ -981,7 +981,7 @@ server.get('/property/user', (request, reply) => __awaiter(void 0, void 0, void 
         // Mapeando os imóveis para incluir as URLs completas das imagens
         const propertiesUrl = properties.map((property) => {
             const updatedImages = property.images.map((image) => {
-                const imageUrl = `http://localhost:3333${image.url}`;
+                const imageUrl = `https://servercasaperto.onrender.com${image.url}`;
                 return imageUrl; // Retorna a URL completa da imagem
             });
             return Object.assign(Object.assign({}, property), { images: updatedImages, username: property.user.username });
