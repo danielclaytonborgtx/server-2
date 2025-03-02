@@ -309,86 +309,83 @@ server.get('/users/:identifier', (request, reply) => __awaiter(void 0, void 0, v
         return reply.status(500).send({ error: 'Failed to fetch user' });
     }
 }));
+
 // Rota para criar equipes
-server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, e_2, _b, _c;
+server.post("/team", async (request, reply) => {
     try {
-        const parts = request.parts(); // Processa arquivos e campos multipart
-        let teamImageUrl = "";
-        let teamName = "";
-        let members = [];
-        console.log("🔄 Iniciando processamento do request...");
-        try {
-            for (var _d = true, parts_2 = __asyncValues(parts), parts_2_1; parts_2_1 = yield parts_2.next(), _a = parts_2_1.done, !_a; _d = true) {
-                _c = parts_2_1.value;
-                _d = false;
-                const part = _c;
-                console.log("📦 Processando parte:", part.fieldname);
-                if (part.type === "file") {
-                    console.log("🖼️ Recebendo arquivo:", part.filename);
-                    const uploadDir = path_1.default.join(__dirname, '../uploads'); // Caminho correto para a pasta uploads na raiz
-                    if (!fs_1.default.existsSync(uploadDir)) {
-                        fs_1.default.mkdirSync(uploadDir, { recursive: true });
-                    }
-                    const fileName = `${Date.now()}_${part.filename}`;
-                    const filePath = path_1.default.join(uploadDir, fileName);
-                    teamImageUrl = `/uploads/${fileName}`.replace(/\/+/g, "/"); // Ajustando a URL para a pasta correta
-                    console.log("📂 Salvando arquivo em:", filePath);
-                    console.log("🌐 URL gerada:", teamImageUrl);
-                    // Verifique se o arquivo está sendo gravado corretamente
-                    yield (0, pump_1.default)(part.file, fs_1.default.createWriteStream(filePath));
-                    console.log("✅ Arquivo salvo com sucesso!");
-                }
-                else if (part.fieldname === "name") {
-                    teamName = typeof part.value === "string" ? part.value : String(part.value);
-                    console.log("📛 Nome da equipe recebido:", teamName);
-                }
-                else if (part.fieldname === "members") {
-                    try {
-                        const parsedMembers = JSON.parse(String(part.value)); // Parse do campo 'members' como JSON
-                        if (Array.isArray(parsedMembers)) {
-                            members = parsedMembers.map((id) => Number(id));
-                            console.log("👥 Membros recebidos:", members);
-                        }
-                    }
-                    catch (err) {
-                        console.error("❌ Erro ao processar membros:", err);
-                        return reply.status(400).send({ error: "Formato de membros inválido." });
-                    }
-                }
+      const parts = request.parts(); // Processa arquivos e campos multipart
+      let teamImageUrl= "";
+      let teamName = "";
+      let members,[] = [];
+  
+      console.log("🔄 Iniciando processamento do request...");
+  
+      for await (const part of parts) {
+        console.log("📦 Processando parte:", part.fieldname);
+  
+        if (part.type === "file") {
+          console.log("🖼️ Recebendo arquivo:", part.filename);
+  
+          const uploadDir = path.join(__dirname, '../uploads');  // Caminho correto para a pasta uploads na raiz
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+  
+          const fileName = `${Date.now()}_${part.filename}`;
+          const filePath = path.join(uploadDir, fileName);
+          teamImageUrl = `/uploads/${fileName}`.replace(/\/+/g, "/"); // Ajustando a URL para a pasta correta
+  
+          console.log("📂 Salvando arquivo em:", filePath);
+          console.log("🌐 URL gerada:", teamImageUrl);
+  
+          // Verifique se o arquivo está sendo gravado corretamente
+          await pump(part.file, fs.createWriteStream(filePath));
+  
+          console.log("✅ Arquivo salvo com sucesso!");
+        } else if (part.fieldname === "name") {
+          teamName = typeof part.value === "string" ? part.value : String(part.value);
+          console.log("📛 Nome da equipe recebido:", teamName);
+        } else if (part.fieldname === "members") {
+          try {
+            const parsedMembers = JSON.parse(String(part.value)); // Parse do campo 'members' como JSON
+            if (Array.isArray(parsedMembers)) {
+              members = parsedMembers.map((id) => Number(id));
+              console.log("👥 Membros recebidos:", members);
             }
+          } catch (err) {
+            console.error("❌ Erro ao processar membros:", err);
+            return reply.status(400).send({ error: "Formato de membros inválido." });
+          }
         }
-        catch (e_2_1) { e_2 = { error: e_2_1 }; }
-        finally {
-            try {
-                if (!_d && !_a && (_b = parts_2.return)) yield _b.call(parts_2);
-            }
-            finally { if (e_2) throw e_2.error; }
-        }
-        // Verificação dos campos obrigatórios
-        if (!teamName || members.length === 0) {
-            console.error("❌ Erro: Nome da equipe e membros são obrigatórios.");
-            return reply.status(400).send({ error: "Nome da equipe e membros são obrigatórios." });
-        }
-        console.log("🛠️ Criando equipe no banco de dados...");
-        const newTeam = yield prisma.team.create({
-            data: { name: teamName, imageUrl: teamImageUrl },
-        });
-        console.log("🛠️ Associando membros à equipe...");
-        yield prisma.teamMember.createMany({
-            data: members.map((userId) => ({
-                teamId: newTeam.id,
-                userId,
-            })),
-        });
-        console.log("🎉 Equipe criada com sucesso!", newTeam);
-        return reply.status(201).send({ message: "Equipe criada com sucesso!", team: newTeam });
+      }
+  
+      // Verificação dos campos obrigatórios
+      if (!teamName || members.length === 0) {
+        console.error("❌ Erro: Nome da equipe e membros são obrigatórios.");
+        return reply.status(400).send({ error: "Nome da equipe e membros são obrigatórios." });
+      }
+  
+      console.log("🛠️ Criando equipe no banco de dados...");
+      const newTeam = await prisma.team.create({
+        data: { name: teamName, imageUrl: teamImageUrl },
+      });
+  
+      console.log("🛠️ Associando membros à equipe...");
+      await prisma.teamMember.createMany({
+        data: members.map((userId) => ({
+          teamId: newTeam.id,
+          userId,
+        })),
+      });
+  
+      console.log("🎉 Equipe criada com sucesso!", newTeam);
+      return reply.status(201).send({ message: "Equipe criada com sucesso!", team: newTeam });
+  
+    } catch (err) {
+      console.error("❌ Erro ao criar equipe:", err);
+      return reply.status(500).send({ error: "Falha ao criar equipe. Tente novamente." });
     }
-    catch (err) {
-        console.error("❌ Erro ao criar equipe:", err);
-        return reply.status(500).send({ error: "Falha ao criar equipe. Tente novamente." });
-    }
-}));
+  });
 // Rota para ver equipe
 server.get('/team', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
