@@ -413,36 +413,37 @@ server.post('/teams/:teamId/leave', (request, reply) => __awaiter(void 0, void 0
         const { teamId } = request.params;
         const { userId } = request.body;
         console.log(`Usuário ${userId} solicitou sair da equipe ${teamId}`);
+
         // Verifica se a equipe existe
         const team = yield prisma.team.findUnique({
             where: { id: parseInt(teamId) },
             include: { members: true },
         });
+
         if (!team) {
             console.log('Equipe não encontrada.');
             return reply.status(404).send({ error: 'Equipe não encontrada.' });
         }
+
         // Verifica se o usuário é membro da equipe
         const isMember = team.members.some((member) => member.userId === userId);
+
         if (!isMember) {
             console.log('Usuário não é membro da equipe.');
             return reply.status(400).send({ error: 'Usuário não é membro da equipe.' });
         }
-        // Remove o usuário da equipe
+
+        // Remove o usuário da equipe (exclui o registro na tabela TeamMember)
         yield prisma.teamMember.deleteMany({
             where: {
                 teamId: parseInt(teamId),
                 userId: userId,
             },
         });
-        // Atualiza o teamId do usuário para null
-        yield prisma.user.update({
-            where: { id: userId },
-            data: { teamId: null }, // Certifique-se de que teamId está definido no modelo User
-        });
+
+        // Retorna uma resposta de sucesso
         return reply.status(200).send({ message: 'Usuário saiu da equipe com sucesso.' });
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Erro ao deixar a equipe:', error);
         return reply.status(500).send({ error: 'Erro ao deixar a equipe.' });
     }
