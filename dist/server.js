@@ -899,51 +899,58 @@ server.post("/property", (request, reply) => __awaiter(void 0, void 0, void 0, f
     }
 }));
 // Rota para filtrar imoveis por id e teamId
-server.get('/properties/filter', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
+server.get('/properties/filter', async (request, reply) => {
     console.log("🚀 Rota '/properties/filter' foi chamada!");
+  
     try {
-        const { userId, teamId } = request.query;
-        console.log("🔍 Query recebida:", request.query);
-        // Verifica se o userId foi passado
-        if (!userId) {
-            console.error("❌ userId ausente!");
-            return reply.status(400).send({ error: "userId é obrigatório" });
-        }
-        // Converte para número
-        const userIdNumber = Number(userId);
-        const teamIdNumber = teamId ? Number(teamId) : null; // teamId é opcional
-        console.log("✅ Valores convertidos:", { userIdNumber, teamIdNumber });
-        if (isNaN(userIdNumber) || (teamId && isNaN(teamIdNumber))) {
-            console.error("❌ userId ou teamId não são números válidos!");
-            return reply.status(400).send({ error: "userId e teamId (se fornecido) devem ser números válidos" });
-        }
-        // Consulta ao banco de dados
-        const properties = yield prisma.property.findMany({
-            where: {
-                OR: [
-                    { userId: userIdNumber }, // Propriedades do usuário
-                    ...(teamIdNumber !== null ? [{ user: { teamMemberships: { some: { teamId: teamIdNumber } } } }] : []), // Propriedades da equipe (se teamId for fornecido)
-                ],
-            },
+      const { userId, teamId } = request.query;
+      console.log("🔍 Query recebida:", request.query);
+  
+      // Verifica se o userId foi passado
+      if (!userId) {
+        console.error("❌ userId ausente!");
+        return reply.status(400).send({ error: "userId é obrigatório" });
+      }
+  
+      // Converte para número
+      const userIdNumber = Number(userId);
+      const teamIdNumber = teamId ? Number(teamId) : null; // teamId é opcional
+  
+      console.log("✅ Valores convertidos:", { userIdNumber, teamIdNumber });
+  
+      if (isNaN(userIdNumber) || (teamId && isNaN(teamIdNumber))) {
+        console.error("❌ userId ou teamId não são números válidos!");
+        return reply.status(400).send({ error: "userId e teamId (se fornecido) devem ser números válidos" });
+      }
+  
+      // Consulta ao banco de dados
+      const properties = await prisma.property.findMany({
+        where: {
+          OR: [
+            { userId: userIdNumber }, // Propriedades do usuário
+            ...(teamIdNumber !== null ? [{ user: { teamMemberships: { some: { teamId: teamIdNumber } } } }] : []), // Propriedades da equipe (se teamId for fornecido)
+          ],
+        },
+        include: {
+          user: {
             include: {
-                user: {
-                    include: {
-                        teamMemberships: {
-                            include: { team: true },
-                        },
-                    },
-                },
-                images: true,
+              teamMemberships: {
+                include: { team: true },
+              },
             },
-        });
-        console.log("📌 Propriedades encontradas:", properties.length, "itens");
-        return reply.send(properties);
+          },
+          images: true,
+        },
+      });
+  
+      console.log("📌 Propriedades encontradas:", properties.length, "itens");
+  
+      return reply.send(properties);
+    } catch (error) {
+      console.error("🔥 Erro ao buscar propriedades:", error);
+      return reply.status(500).send({ error: "Erro ao buscar as propriedades" });
     }
-    catch (error) {
-        console.error("🔥 Erro ao buscar propriedades:", error);
-        return reply.status(500).send({ error: "Erro ao buscar as propriedades" });
-    }
-}));
+  });
 // Rota para listar imóveis
 server.get("/property", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     try {
