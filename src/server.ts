@@ -483,6 +483,7 @@ server.post("/team", async (request, reply) => {
   }
 });
 
+// Rota para sair da equipe
 server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: FastifyReply) => {
   try {
     const { teamId } = request.params as { teamId: string };
@@ -509,7 +510,7 @@ server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: Fasti
       return reply.status(400).send({ error: 'Usuário não é membro da equipe.' });
     }
 
-    // Remove o usuário da equipe
+    // Remove o usuário da equipe (exclui o registro na tabela TeamMember)
     await prisma.teamMember.deleteMany({
       where: {
         teamId: parseInt(teamId),
@@ -517,52 +518,11 @@ server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: Fasti
       },
     });
 
-    // Atualiza o teamId do usuário para null
-    await prisma.user.update({
-      where: { id: userId },
-      data: { teamId: null }, // Certifique-se de que teamId está definido no modelo User
-    });
-
+    // Retorna uma resposta de sucesso
     return reply.status(200).send({ message: 'Usuário saiu da equipe com sucesso.' });
   } catch (error) {
     console.error('Erro ao deixar a equipe:', error);
     return reply.status(500).send({ error: 'Erro ao deixar a equipe.' });
-  }
-});
-
-// Rota para ver equipe
-server.get('/team', async (request, reply) => {
-  try {
-    const userId = request.user?.id;
-    if (!userId) {
-      return reply.status(400).send({ error: 'Usuário não autenticado ou ID não encontrado.' });
-    }
-
-    const team = await prisma.team.findFirst({
-      where: {
-        members: {
-          some: { userId: userId },
-        },
-      },
-      include: {
-        members: true,
-      },
-    });
-
-    if (!team) {
-      return reply.status(404).send({ error: 'Equipe não encontrada' });
-    }
-
-    reply.status(200).send(team);
-  } catch (error: unknown) { // Agora, o tipo do erro é `unknown`
-    if (error instanceof Error) {
-      console.error('Erro ao buscar a equipe:', error.message); // Agora TypeScript sabe que é uma instância de Error
-      reply.status(500).send({ error: 'Erro ao buscar a equipe', details: error.message });
-    } else {
-      // Caso o erro não seja uma instância de Error
-      console.error('Erro desconhecido:', error);
-      reply.status(500).send({ error: 'Erro ao buscar a equipe' });
-    }
   }
 });
 
