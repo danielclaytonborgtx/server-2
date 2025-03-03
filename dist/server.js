@@ -692,42 +692,48 @@ server.delete('/team/:id', (request, reply) => __awaiter(void 0, void 0, void 0,
     }
 }));
 // Rota para enviar mensagem
-server.post('/messages', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
+server.post('/messages', async (request, reply) => {
     const { senderId, receiverId, content } = request.body;
+
     // Validando os dados com Joi
     const { error } = messageSchema.validate({ senderId, receiverId, content });
+
     if (error) {
         return reply.status(400).send({ error: error.details[0].message });
     }
+
     try {
         // Criando a nova mensagem
-        const newMessage = yield prisma.message.create({
+        const newMessage = await prisma.message.create({
             data: {
                 senderId,
                 receiverId,
                 content,
             },
         });
+
         return reply.status(201).send(newMessage);
-    }
-    catch (err) {
+    } catch (err) {
         console.error(err);
         return reply.status(500).send({ error: 'Falha ao enviar a mensagem.' });
     }
-}));
+});
 // Rota para buscar mensagens entre dois usuários
-server.get('/messages', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
+server.get('/messages', async (request, reply) => {
     const { senderId, receiverId } = request.query;
+
     // Convertendo para número
     const senderIdNum = parseInt(senderId, 10);
     const receiverIdNum = parseInt(receiverId, 10);
+
     // Validar se senderId e receiverId são números
     if (isNaN(senderIdNum) || isNaN(receiverIdNum)) {
         return reply.status(400).send({ error: 'Os parâmetros senderId e receiverId precisam ser números válidos.' });
     }
+
     try {
         // Consultar mensagens entre senderId e receiverId
-        const messages = yield prisma.message.findMany({
+        const messages = await prisma.message.findMany({
             where: {
                 OR: [
                     { senderId: senderIdNum, receiverId: receiverIdNum },
@@ -738,54 +744,61 @@ server.get('/messages', (request, reply) => __awaiter(void 0, void 0, void 0, fu
                 timestamp: 'asc',
             },
         });
+
         return reply.send(messages);
-    }
-    catch (err) {
+    } catch (err) {
         console.error(err);
         return reply.status(500).send({ error: 'Falha ao buscar as mensagens' });
     }
-}));
+});
 // Rota para buscar mensagens de um usuário específico
-server.get('/messages/:userId', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
+server.get('/messages/:userId', async (request, reply) => {
     const userId = parseInt(request.params.userId, 10);
+
     if (isNaN(userId)) {
         return reply.status(400).send({ error: 'ID inválido' });
     }
+
     try {
-        const messages = yield prisma.message.findMany({
+        const messages = await prisma.message.findMany({
             where: {
                 OR: [{ senderId: userId }, { receiverId: userId }],
             },
             orderBy: { timestamp: 'asc' },
         });
+
         return reply.send(messages);
-    }
-    catch (err) {
+    } catch (err) {
         console.error(err);
         return reply.status(500).send({ error: 'Falha ao buscar mensagens' });
     }
-}));
+});
 // Rota para buscar a lista de conversas únicas do usuário
-server.get('/messages/conversations/:userId', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
+server.get('/messages/conversations/:userId', async (request, reply) => {
     const userId = parseInt(request.params.userId, 10);
+
     if (isNaN(userId)) {
         return reply.status(400).send({ error: 'ID inválido' });
     }
+
     try {
         // Buscar todas as conversas do usuário
-        const conversations = yield prisma.message.findMany({
+        const conversations = await prisma.message.findMany({
             where: {
                 OR: [{ senderId: userId }, { receiverId: userId }],
             },
             orderBy: { timestamp: 'desc' }, // Ordenar por timestamp para pegar a última mensagem primeiro
         });
+
         // Usar um objeto para evitar duplicação de userId
         const uniqueConversations = {};
+
         for (const message of conversations) {
             const otherUserId = message.senderId === userId ? message.receiverId : message.senderId;
+
             // Se a conversa já foi processada, pule
-            if (uniqueConversations[otherUserId])
-                continue;
+            if (uniqueConversations[otherUserId]) continue;
+
             // Adicionar a conversa ao objeto
             uniqueConversations[otherUserId] = {
                 userId: otherUserId,
@@ -793,15 +806,16 @@ server.get('/messages/conversations/:userId', (request, reply) => __awaiter(void
                 timestamp: message.timestamp || new Date(),
             };
         }
+
         // Converter o objeto de volta para um array
         const formattedConversations = Object.values(uniqueConversations);
+
         return reply.send(formattedConversations);
-    }
-    catch (err) {
+    } catch (err) {
         console.error(err);
         return reply.status(500).send({ error: 'Falha ao buscar conversas' });
     }
-}));
+});
 // Rota para adicionar imóveis
 server.post("/property", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_4, _b, _c;
