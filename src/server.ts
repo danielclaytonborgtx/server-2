@@ -474,8 +474,24 @@ server.post("/team", async (request, reply) => {
       })),
     });
 
+    console.log("🛠️ Atualizando teamId dos membros...");
+    await prisma.user.updateMany({
+      where: { id: { in: members } }, // Filtra os usuários que foram adicionados
+      data: { teamId: newTeam.id }, // Define o teamId como o ID da nova equipe
+    });
+
+    console.log("🛠️ Buscando dados atualizados dos membros...");
+    const updatedMembers = await prisma.user.findMany({
+      where: { id: { in: members } }, // Filtra os usuários que foram adicionados
+      select: { id: true, name: true, teamId: true }, // Seleciona os campos necessários
+    });
+
     console.log("🎉 Equipe criada com sucesso!", newTeam);
-    return reply.status(201).send({ message: "Equipe criada com sucesso!", team: newTeam });
+    return reply.status(201).send({
+      message: "Equipe criada com sucesso!",
+      team: newTeam,
+      members: updatedMembers, // Retorna os membros atualizados
+    });
 
   } catch (err) {
     console.error("❌ Erro ao criar equipe:", err);
