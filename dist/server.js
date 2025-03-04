@@ -330,16 +330,15 @@ server.get('/users/:identifier', (request, reply) => __awaiter(void 0, void 0, v
 }));
 server.post("/team", async (request, reply) => {
     try {
-      const parts = request.parts(); // Processa arquivos e campos multipart
+      console.log("🔄 Iniciando processamento do request...");
+      const parts = request.parts();
       let teamImageUrl = "";
       let teamName = "";
       let members = [];
-      console.log("🔄 Iniciando processamento do request...");
-      
-      // Processamento do arquivo e campos
+  
       for await (const part of parts) {
         console.log("📦 Processando parte:", part.fieldname);
-        
+  
         if (part.type === "file") {
           const uploadDir = path.join(__dirname, '../uploads');
           if (!fs.existsSync(uploadDir)) {
@@ -352,11 +351,13 @@ server.post("/team", async (request, reply) => {
           console.log("✅ Arquivo salvo com sucesso!");
         } else if (part.fieldname === "name") {
           teamName = typeof part.value === "string" ? part.value : String(part.value);
+          console.log("📛 Nome da equipe recebido:", teamName);
         } else if (part.fieldname === "members") {
           try {
             const parsedMembers = JSON.parse(String(part.value));
             if (Array.isArray(parsedMembers)) {
               members = parsedMembers.map(id => Number(id));
+              console.log("👥 Membros recebidos:", members);
             }
           } catch (err) {
             console.error("❌ Erro ao processar membros:", err);
@@ -365,40 +366,42 @@ server.post("/team", async (request, reply) => {
         }
       }
   
-      // Verificação dos campos obrigatórios
       if (!teamName || members.length === 0) {
+        console.error("❌ Erro: Nome da equipe e membros são obrigatórios.");
         return reply.status(400).send({ error: "Nome da equipe e membros são obrigatórios." });
       }
   
-      // Criação da equipe no banco de dados
+      // Criando a equipe
       const newTeam = await prisma.team.create({
         data: { name: teamName, imageUrl: teamImageUrl },
       });
+      console.log("🛠️ Equipe criada com sucesso!", newTeam);
   
-      // Associando membros à equipe
+      // Associando membros
       await prisma.teamMember.createMany({
         data: members.map((userId) => ({
           teamId: newTeam.id,
           userId,
         })),
       });
+      console.log("👥 Membros associados à equipe.");
   
-      // Carregar os imóveis de todos os membros, incluindo o usuário que está criando a equipe
+      // Carregar os imóveis de todos os membros
       const memberProperties = await prisma.property.findMany({
         where: {
           userId: {
-            in: [...members], // Inclui todos os membros da equipe
+            in: members,
           },
         },
       });
+      console.log("🏠 Imóveis carregados para os membros:", memberProperties);
   
-      console.log("🎉 Equipe criada com sucesso!");
-  
-      // Retorna a equipe e os imóveis dos membros
+      // Atualizar a sessão ou os dados do usuário com as novas informações
+      // Supondo que você tenha alguma maneira de atualizar a sessão ou enviar os dados atualizados
       return reply.status(201).send({
         message: "Equipe criada com sucesso!",
         team: newTeam,
-        properties: memberProperties, // Retorna os imóveis dos membros
+        properties: memberProperties, // Envie os imóveis junto com a resposta
       });
     } catch (err) {
       console.error("❌ Erro ao criar equipe:", err);
