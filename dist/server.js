@@ -399,21 +399,14 @@ server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, funct
             })),
         });
 
-        // Atualize a sessão dos usuários adicionados
-        for (const userId of members) {
-            const userSession = yield getUserSession(userId);
-            if (userSession) {
-                userSession.teamId = newTeam.id;
-                yield updateUserSession(userId, userSession);
-
-                // Emita um novo token (se estiver usando JWT)
-                const newToken = generateNewToken(userId, newTeam.id);
-                yield sendNewTokenToUser(userId, newToken);
-            }
-        }
-
         console.log("🎉 Equipe criada com sucesso!", newTeam);
-        return reply.status(201).send({ message: "Equipe criada com sucesso!", team: newTeam });
+
+        // Retorne o teamId atualizado para os membros
+        return reply.status(201).send({
+            message: "Equipe criada com sucesso!",
+            team: newTeam,
+            members: members.map((userId) => ({ userId, teamId: newTeam.id })),
+        });
     }
     catch (err) {
         console.error("❌ Erro ao criar equipe:", err);
