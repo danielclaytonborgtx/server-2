@@ -337,14 +337,24 @@ server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, funct
         let teamName = "";
         let members = [];
         console.log("🔄 Iniciando processamento do request...");
+
         try {
             for (var _d = true, parts_2 = __asyncValues(parts), parts_2_1; parts_2_1 = yield parts_2.next(), _a = parts_2_1.done, !_a; _d = true) {
                 _c = parts_2_1.value;
                 _d = false;
                 const part = _c;
                 console.log("📦 Processando parte:", part.fieldname);
+
                 if (part.type === "file") {
                     console.log("🖼️ Recebendo arquivo:", part.filename);
+                    const allowedMimeTypes = ["image/jpeg", "image/png", "image/gif"];
+                    if (!allowedMimeTypes.includes(part.mimetype)) {
+                        return reply.status(400).send({ error: "Tipo de arquivo não suportado." });
+                    }
+                    if (part.file.bytesRead > 5 * 1024 * 1024) { // 5MB
+                        return reply.status(400).send({ error: "O arquivo deve ter no máximo 5MB." });
+                    }
+
                     const uploadDir = path_1.default.join(__dirname, '../uploads');
                     if (!fs_1.default.existsSync(uploadDir)) {
                         fs_1.default.mkdirSync(uploadDir, { recursive: true });
@@ -365,7 +375,7 @@ server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, funct
                     try {
                         const parsedMembers = JSON.parse(String(part.value));
                         if (Array.isArray(parsedMembers)) {
-                            members = parsedMembers.map((id) => Number(id));
+                            members = [...new Set(parsedMembers.map((id) => Number(id)))]; // Remove duplicatas
                             console.log("👥 Membros recebidos:", members);
                         }
                     }
@@ -383,14 +393,29 @@ server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, funct
             }
             finally { if (e_2) throw e_2.error; }
         }
-        if (!teamName || members.length === 0) {
-            console.error("❌ Erro: Nome da equipe e membros são obrigatórios.");
-            return reply.status(400).send({ error: "Nome da equipe e membros são obrigatórios." });
+
+        if (!teamName || teamName.trim() === "") {
+            console.error("❌ Erro: Nome da equipe é obrigatório.");
+            return reply.status(400).send({ error: "Nome da equipe é obrigatório." });
         }
+        if (members.length === 0) {
+            console.error("❌ Erro: Pelo menos um membro é obrigatório.");
+            return reply.status(400).send({ error: "Pelo menos um membro é obrigatório." });
+        }
+
+        // Verifica se os membros existem no banco de dados
+        const existingUsers = yield prisma.user.findMany({
+            where: { id: { in: members } },
+        });
+        if (existingUsers.length !== members.length) {
+            return reply.status(400).send({ error: "Um ou mais membros não existem." });
+        }
+
         console.log("🛠️ Criando equipe no banco de dados...");
         const newTeam = yield prisma.team.create({
             data: { name: teamName, imageUrl: teamImageUrl },
         });
+
         console.log("🛠️ Associando membros à equipe...");
         yield prisma.teamMember.createMany({
             data: members.map((userId) => ({
@@ -410,7 +435,10 @@ server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, funct
     }
     catch (err) {
         console.error("❌ Erro ao criar equipe:", err);
-        return reply.status(500).send({ error: "Falha ao criar equipe. Tente novamente." });
+        return reply.status(500).send({ 
+            error: "Falha ao criar equipe. Tente novamente.",
+            details: err.message 
+        });
     }
 }));
 server.post('/teams/:teamId/leave', (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
