@@ -387,12 +387,16 @@ server.get('/users/:identifier', async (request: FastifyRequest<{ Params: { iden
   try {
     let user;
 
-    // Se for um número, busca pelo ID
     if (!isNaN(Number(identifier))) {
-      user = await prisma.user.findUnique({ where: { id: Number(identifier) } });
+      user = await prisma.user.findUnique({ 
+        where: { id: Number(identifier) },
+        select: { id: true, name: true, email: true, teamId: true }, // Adicione teamId
+      });
     } else {
-      // Se for string, busca pelo username
-      user = await prisma.user.findUnique({ where: { username: identifier } });
+      user = await prisma.user.findUnique({ 
+        where: { username: identifier },
+        select: { id: true, name: true, email: true, teamId: true }, // Adicione teamId
+      });
     }
 
     if (!user) {
@@ -402,10 +406,9 @@ server.get('/users/:identifier', async (request: FastifyRequest<{ Params: { iden
     return reply.send(user);
   } catch (error) {
     console.error(error);
-    return reply.status(500).send({ error: 'Failed to fetch user' });
+    return reply.status(500).send({ error: 'Erro ao buscar usuário' });
   }
 });
-
 // Rota para criar equipes
 server.post("/team", async (request, reply) => {
   try {
@@ -532,6 +535,12 @@ server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: Fasti
         teamId: parseInt(teamId),
         userId: userId,
       },
+    });
+
+    // Atualiza o campo teamId do usuário para null
+    await prisma.user.update({
+      where: { id: userId },
+      data: { teamId: null },
     });
 
     // Retorna uma resposta de sucesso
@@ -734,12 +743,18 @@ server.delete('/team/:id', async (request: FastifyRequest<{ Params: { id: string
       return reply.status(404).send({ error: 'Equipe não encontrada.' });
     }
 
+    // Atualiza os `teamId` de todos os membros para null antes de excluir a equipe
+    await prisma.user.updateMany({
+      where: { teamId: teamId },
+      data: { teamId: null },
+    });
+
     // Primeiro, deletamos os registros relacionados em TeamMember
     await prisma.teamMember.deleteMany({
       where: { teamId: teamId },
     });
 
-    console.log(`Membros da equipe ${teamId} deletados.`);
+    console.log(`Membros da equipe ${teamId} atualizados para não ter equipe.`);
 
     // Agora, podemos deletar a equipe
     await prisma.team.delete({

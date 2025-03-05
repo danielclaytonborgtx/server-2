@@ -345,16 +345,15 @@ server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, funct
                 console.log("📦 Processando parte:", part.fieldname);
                 if (part.type === "file") {
                     console.log("🖼️ Recebendo arquivo:", part.filename);
-                    const uploadDir = path_1.default.join(__dirname, '../uploads'); // Caminho correto para a pasta uploads na raiz
+                    const uploadDir = path_1.default.join(__dirname, '../uploads');
                     if (!fs_1.default.existsSync(uploadDir)) {
                         fs_1.default.mkdirSync(uploadDir, { recursive: true });
                     }
                     const fileName = `${Date.now()}_${part.filename}`;
                     const filePath = path_1.default.join(uploadDir, fileName);
-                    teamImageUrl = `/uploads/${fileName}`.replace(/\/+/g, "/"); // Ajustando a URL para a pasta correta
+                    teamImageUrl = `/uploads/${fileName}`.replace(/\/+/g, "/");
                     console.log("📂 Salvando arquivo em:", filePath);
                     console.log("🌐 URL gerada:", teamImageUrl);
-                    // Verifique se o arquivo está sendo gravado corretamente
                     yield (0, pump_1.default)(part.file, fs_1.default.createWriteStream(filePath));
                     console.log("✅ Arquivo salvo com sucesso!");
                 }
@@ -364,7 +363,7 @@ server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, funct
                 }
                 else if (part.fieldname === "members") {
                     try {
-                        const parsedMembers = JSON.parse(String(part.value)); // Parse do campo 'members' como JSON
+                        const parsedMembers = JSON.parse(String(part.value));
                         if (Array.isArray(parsedMembers)) {
                             members = parsedMembers.map((id) => Number(id));
                             console.log("👥 Membros recebidos:", members);
@@ -384,7 +383,6 @@ server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, funct
             }
             finally { if (e_2) throw e_2.error; }
         }
-        // Verificação dos campos obrigatórios
         if (!teamName || members.length === 0) {
             console.error("❌ Erro: Nome da equipe e membros são obrigatórios.");
             return reply.status(400).send({ error: "Nome da equipe e membros são obrigatórios." });
@@ -400,6 +398,20 @@ server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, funct
                 userId,
             })),
         });
+
+        // Atualize a sessão dos usuários adicionados
+        for (const userId of members) {
+            const userSession = yield getUserSession(userId);
+            if (userSession) {
+                userSession.teamId = newTeam.id;
+                yield updateUserSession(userId, userSession);
+
+                // Emita um novo token (se estiver usando JWT)
+                const newToken = generateNewToken(userId, newTeam.id);
+                yield sendNewTokenToUser(userId, newToken);
+            }
+        }
+
         console.log("🎉 Equipe criada com sucesso!", newTeam);
         return reply.status(201).send({ message: "Equipe criada com sucesso!", team: newTeam });
     }
