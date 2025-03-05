@@ -328,6 +328,22 @@ server.get('/users/:identifier', (request, reply) => __awaiter(void 0, void 0, v
         return reply.status(500).send({ error: 'Failed to fetch user' });
     }
 }));
+server.put('/users/:id', async (request, reply) => {
+    const { id } = request.params;
+    const { teamId } = request.body;
+
+    try {
+        const updatedUser = await prisma.user.update({
+            where: { id: Number(id) },
+            data: { teamId },
+        });
+
+        return reply.send(updatedUser);
+    } catch (error) {
+        console.error(error);
+        return reply.status(500).send({ error: 'Erro ao atualizar usuário' });
+    }
+});
 // Rota para criar equipes
 server.post("/team", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_2, _b, _c;
