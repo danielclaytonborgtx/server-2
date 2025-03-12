@@ -129,7 +129,7 @@ server.post("/session", (request, reply) => __awaiter(void 0, void 0, void 0, fu
         const user = yield prisma.user.findUnique({
             where: { username },
             include: {
-                teamMemberships: {
+                teamMembers: {
                     include: {
                         team: true, // Incluir o time do usuário
                     }
@@ -142,7 +142,7 @@ server.post("/session", (request, reply) => __awaiter(void 0, void 0, void 0, fu
             return reply.status(401).send({ error: "Invalid username or password" });
         }
         // Garantir que o campo picture seja tratado como opcional
-        const userTeam = user.teamMemberships.length > 0 ? user.teamMemberships[0].team : null;
+        const userTeam = user.teamMembers.length > 0 ? user.teamMembers[0].team : null;
         return reply.send({
             message: "Login successful",
             user: {
@@ -272,7 +272,7 @@ server.get('/users', (request, reply) => __awaiter(void 0, void 0, void 0, funct
     try {
         const users = yield prisma.user.findMany({
             include: {
-                teamMemberships: {
+                teamMembers: {
                     include: {
                         team: true, // Inclui os dados das equipes
                     },
@@ -292,7 +292,7 @@ server.get('/users/no-team', (request, reply) => __awaiter(void 0, void 0, void 
     try {
         const users = yield prisma.user.findMany({
             where: {
-                teamMemberships: {
+                teamMembers: {
                     none: {}
                 },
             },
@@ -961,13 +961,13 @@ server.get('/properties/filter', async (request, reply) => {
         where: {
           OR: [
             { userId: userIdNumber }, // Propriedades do usuário
-            ...(teamIdNumber !== null ? [{ user: { teamMemberships: { some: { teamId: teamIdNumber } } } }] : []), // Propriedades da equipe (se teamId for fornecido)
+            ...(teamIdNumber !== null ? [{ user: { teamMembers: { some: { teamId: teamIdNumber } } } }] : []), // Propriedades da equipe (se teamId for fornecido)
           ],
         },
         include: {
           user: {
             include: {
-              teamMemberships: {
+              teamMembers: {
                 include: { team: true },
               },
             },

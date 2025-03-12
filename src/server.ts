@@ -127,7 +127,7 @@ declare module 'fastify' {
   }
 }
 
-// Rota de registro de usuários
+// Rota de registro de usuários-ok
 server.post(
   "/users",
   async (
@@ -177,7 +177,7 @@ server.post(
   }
 );
 
-// Rota de login via usuário e senha
+// Rota de login via usuário e senha-ok
 server.post(
   "/session",
   async (request: FastifyRequest<{ Body: LoginRequest }>, reply: FastifyReply) => {
@@ -193,7 +193,7 @@ server.post(
       const user = await prisma.user.findUnique({
         where: { username },
         include: {
-          teamMemberships: {
+          teamMembers: {
             include: {
               team: true,  // Incluir o time do usuário
             }
@@ -209,7 +209,7 @@ server.post(
       }
 
       // Garantir que o campo picture seja tratado como opcional
-      const userTeam = user.teamMemberships.length > 0 ? user.teamMemberships[0].team : null;
+      const userTeam = user.teamMembers.length > 0 ? user.teamMembers[0].team : null;
 
       return reply.send({
         message: "Login successful",
@@ -230,7 +230,7 @@ server.post(
 );
 
 
-// Rota para atualizar a imagem de perfil do usuário
+// Rota para atualizar a imagem de perfil do usuário-ok
 server.post("/users/:id/profile-picture", async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
   try {
     const parts = request.parts(); // Processa arquivos e campos multipart
@@ -272,7 +272,7 @@ server.post("/users/:id/profile-picture", async (request: FastifyRequest<{ Param
   }
 });
 
-// Rota para obter a imagem de perfil do usuário
+// Rota para obter a imagem de perfil do usuário-ok
 server.get("/users/:id/profile-picture", async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
   try {
     // Busca o usuário no banco de dados
@@ -299,7 +299,7 @@ server.get("/users/:id/profile-picture", async (request: FastifyRequest<{ Params
   }
 });
 
-// Rota de login com Google (ID Token)
+// Rota de login com Google (ID Token)-ok
 server.post(
   "/google-login",
   async (request: FastifyRequest<{ Body: { id_token: string } }>, reply: FastifyReply) => {
@@ -342,12 +342,12 @@ server.post(
   }
 );
 
-// Rota de buscar todos usuários
+// Rota de buscar todos usuários-ok
 server.get('/users', async (request, reply) => {
   try {
     const users = await prisma.user.findMany({
       include: {
-        teamMemberships: { // Inclui as equipes associadas ao usuário
+        teamMembers: { // Inclui as equipes associadas ao usuário
           include: {
             team: true, // Inclui os dados das equipes
           },
@@ -361,13 +361,13 @@ server.get('/users', async (request, reply) => {
   }
 });
 
-// Rota para filtrar usuario sem time
+// Rota para filtrar usuario sem time-testar
 server.get('/users/no-team', async (request, reply) => {
   console.log('Rota /users/no-team acessada'); // Log de acesso à rota
   try {
     const users = await prisma.user.findMany({
       where: {
-        teamMemberships: {
+        teamMembers: {
           none: {}
         },
       },
@@ -380,7 +380,7 @@ server.get('/users/no-team', async (request, reply) => {
   }
 });
 
-// Rota de buscar usuário por ID e username
+// Rota de buscar usuário por ID e username-ok
 server.get('/users/:identifier', async (request: FastifyRequest<{ Params: { identifier: string } }>, reply: FastifyReply) => {
   const { identifier } = request.params;
   
@@ -390,12 +390,12 @@ server.get('/users/:identifier', async (request: FastifyRequest<{ Params: { iden
     if (!isNaN(Number(identifier))) {
       user = await prisma.user.findUnique({ 
         where: { id: Number(identifier) },
-        select: { id: true, name: true, email: true, teamId: true }, // Adicione teamId
+        select: { id: true, name: true, email: true, teamMembers: true }, // Adicione 
       });
     } else {
       user = await prisma.user.findUnique({ 
         where: { username: identifier },
-        select: { id: true, name: true, email: true, teamId: true }, // Adicione teamId
+        select: { id: true, name: true, email: true, teamMembers: true }, // Adicione teamId
       });
     }
 
@@ -409,7 +409,8 @@ server.get('/users/:identifier', async (request: FastifyRequest<{ Params: { iden
     return reply.status(500).send({ error: 'Erro ao buscar usuário' });
   }
 });
-// Rota para criar equipes
+
+// Rota para criar equipes-ok
 server.post("/team", async (request, reply) => {
   try {
     const parts = request.parts(); // Processa arquivos e campos multipart
@@ -470,6 +471,7 @@ server.post("/team", async (request, reply) => {
     });
 
     console.log("🛠️ Associando membros à equipe...");
+
     await prisma.teamMember.createMany({
       data: members.map((userId: number) => ({
         teamId: newTeam.id,
@@ -477,16 +479,16 @@ server.post("/team", async (request, reply) => {
       })),
     });
 
-    console.log("🛠️ Atualizando teamId dos membros...");
-    await prisma.user.updateMany({
-      where: { id: { in: members } }, // Filtra os usuários que foram adicionados
-      data: { teamId: newTeam.id }, // Define o teamId como o ID da nova equipe
-    });
+    // console.log("🛠️ Atualizando teamId dos membros...");
+    // await prisma.user.updateMany({
+    //   where: { id: { in: members } }, // Filtra os usuários que foram adicionados
+    //   data: { teamId: newTeam.id }, // Define o teamId como o ID da nova equipe
+    // });
 
     console.log("🛠️ Buscando dados atualizados dos membros...");
     const updatedMembers = await prisma.user.findMany({
       where: { id: { in: members } }, // Filtra os usuários que foram adicionados
-      select: { id: true, name: true, teamId: true }, // Seleciona os campos necessários
+      select: { id: true, name: true }, // Seleciona os campos necessários
     });
 
     console.log("🎉 Equipe criada com sucesso!", newTeam);
@@ -502,7 +504,7 @@ server.post("/team", async (request, reply) => {
   }
 });
 
-// Rota para sair da equipe
+// Rota para sair da equipe-ok
 server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: FastifyReply) => {
   try {
     const { teamId } = request.params as { teamId: string };
@@ -513,7 +515,7 @@ server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: Fasti
     // Verifica se a equipe existe
     const team = await prisma.team.findUnique({
       where: { id: parseInt(teamId) },
-      include: { members: true },
+      include: { teamMembers: true },
     });
 
     if (!team) {
@@ -522,7 +524,7 @@ server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: Fasti
     }
 
     // Verifica se o usuário é membro da equipe
-    const isMember = team.members.some((member) => member.userId === userId);
+    const isMember = team.teamMembers.some((member) => member.userId === userId);
 
     if (!isMember) {
       console.log('Usuário não é membro da equipe.');
@@ -538,10 +540,10 @@ server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: Fasti
     });
 
     // Atualiza o campo teamId do usuário para null
-    await prisma.user.update({
-      where: { id: userId },
-      data: { teamId: null },
-    });
+    // await prisma.user.update({
+    //   where: { id: userId },
+    //   data: { teamId: null },
+    // });
 
     // Retorna uma resposta de sucesso
     return reply.status(200).send({ message: 'Usuário saiu da equipe com sucesso.' });
@@ -551,7 +553,7 @@ server.post('/teams/:teamId/leave', async (request: FastifyRequest, reply: Fasti
   }
 });
 
-// Rota para editar uma equipe existente
+// Rota para editar equipe
 server.put('/team/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
   try {
     const teamId = parseInt(request.params.id); // Convertendo id para número
@@ -622,14 +624,36 @@ server.put('/team/:id', async (request: FastifyRequest<{ Params: { id: string } 
 
     if (members) {
       console.log('🔄 Atualizando membros da equipe...');
-      await prisma.teamMember.deleteMany({ where: { teamId } });
 
-      await prisma.teamMember.createMany({
-        data: members.map((userId: number) => ({
-          teamId,
-          userId,
-        })),
+      // Remove os membros que não estão mais na equipe
+      const currentMembers = await prisma.teamMember.findMany({
+        where: { teamId },
       });
+
+      const currentMemberIds = currentMembers.map((member) => member.userId);
+      const removedMembers = currentMemberIds.filter((id) => !members.includes(id));
+
+      if (removedMembers.length > 0) {
+        console.log('🚫 Removendo membros da equipe:', removedMembers);
+        await prisma.teamMember.deleteMany({
+          where: {
+            teamId,
+            userId: { in: removedMembers },
+          },
+        });
+      }
+
+      // Adiciona os novos membros à equipe
+      const newMembers = members.filter((id) => !currentMemberIds.includes(id));
+      if (newMembers.length > 0) {
+        console.log('➕ Adicionando novos membros à equipe:', newMembers);
+        await prisma.teamMember.createMany({
+          data: newMembers.map((userId: number) => ({
+            teamId,
+            userId,
+          })),
+        });
+      }
     }
 
     console.log('✅ Equipe atualizada com sucesso!', updatedTeam);
@@ -646,7 +670,53 @@ server.put('/team/:id', async (request: FastifyRequest<{ Params: { id: string } 
   }
 });
 
-// Rota para encontrar uma equipe especifica
+// Rota para remover membro da equipe
+server.delete('/team/member/:teamId/:id', async (request, reply) => {
+  // Garantindo que os parâmetros são passados corretamente
+  const { teamId, id } = request.params as { teamId: string, id: string };
+
+  try {
+    // Convertendo os parâmetros para número
+    const teamIdNumber = parseInt(teamId);
+    const userIdNumber = parseInt(id);
+
+    // Verificando se a conversão foi bem-sucedida
+    if (isNaN(teamIdNumber) || isNaN(userIdNumber)) {
+      return reply.status(400).send({ error: 'ID ou teamId inválido.' });
+    }
+
+    // Verifica se o membro existe na equipe
+    const teamMember = await prisma.teamMember.findUnique({
+      where: {
+        teamId_userId: {
+          teamId: teamIdNumber,
+          userId: userIdNumber,
+        },
+      },
+    });
+
+    if (!teamMember) {
+      return reply.status(404).send({ error: 'Membro não encontrado na equipe.' });
+    }
+
+    // Exclui o membro da equipe
+    await prisma.teamMember.delete({
+      where: {
+        teamId_userId: {
+          teamId: teamIdNumber,
+          userId: userIdNumber,
+        },
+      },
+    });
+
+    return reply.status(200).send({ message: 'Corretor removido da equipe com sucesso.' });
+  } catch (error) {
+    console.error('Erro ao remover membro da equipe:', error);
+    return reply.status(500).send({ error: 'Erro ao remover corretor da equipe.' });
+  }
+});
+
+// Rota para ver uma equipe
 server.get('/team/:id', async (request: FastifyRequest<{ Params: Params }>, reply) => {
   try {
     const teamId = parseInt(request.params.id); // Convertendo id para número
@@ -659,7 +729,7 @@ server.get('/team/:id', async (request: FastifyRequest<{ Params: Params }>, repl
         id: teamId,
       },
       include: {
-        members: { // Certificando-se de incluir os membros com suas informações
+        teamMembers: {
           include: {
             user: true, // Incluir os dados do usuário para cada membro
           },
@@ -676,8 +746,8 @@ server.get('/team/:id', async (request: FastifyRequest<{ Params: Params }>, repl
       id: team.id,
       name: team.name,
       imageUrl: team.imageUrl, // Certificando-se de enviar a URL da imagem
-      members: team.members.map(member => ({
-        id: member.user.id,
+      members: team.teamMembers.map(member => ({
+        userId: member.user.id, // Adicionar o userId
         name: member.user.name,
         email: member.user.email,
         // Adicione outros dados de usuário que forem necessários
@@ -699,7 +769,7 @@ server.get('/teams', async (request, reply) => {
   try {
     const teams = await prisma.team.findMany({
       include: {
-        members: {
+        teamMembers: {
           include: {
             user: true, // Inclui o usuário do membro
           },
@@ -707,16 +777,26 @@ server.get('/teams', async (request, reply) => {
       },
     });
 
-    // Adiciona o creatorId à equipe (usando o primeiro membro como criador)
-    const teamsWithCreator = teams.map((team) => {
-      const creatorId = team.members[0]?.userId; // Considera o primeiro membro como criador
+    // Mapeia as equipes para incluir o creatorId e os membros com userId
+    const teamsWithCreatorAndMembers = teams.map((team) => {
+      const creatorId = team.teamMembers[0]?.userId; // Considera o primeiro membro como criador
+      const members = team.teamMembers.map((member) => ({
+        userId: member.user.id, // Inclui o userId de cada membro
+        name: member.user.name,
+        email: member.user.email,
+        // Adicione outros campos do usuário, se necessário
+      }));
+
       return {
-        ...team,
-        creatorId, // Adiciona o creatorId à equipe
+        id: team.id,
+        name: team.name,
+        imageUrl: team.imageUrl, // URL da imagem da equipe
+        creatorId, // ID do criador da equipe
+        members, // Lista de membros da equipe
       };
     });
 
-    return reply.send(teamsWithCreator);
+    return reply.send(teamsWithCreatorAndMembers);
   } catch (error) {
     console.error(error);
     return reply.status(500).send({ error: 'Erro ao buscar todas as equipes' });
@@ -744,10 +824,10 @@ server.delete('/team/:id', async (request: FastifyRequest<{ Params: { id: string
     }
 
     // Atualiza os `teamId` de todos os membros para null antes de excluir a equipe
-    await prisma.user.updateMany({
-      where: { teamId: teamId },
-      data: { teamId: null },
-    });
+    // await prisma.user.updateMany({
+    //   where: { teamId: teamId },
+    //   data: { teamId: null },
+    // });
 
     // Primeiro, deletamos os registros relacionados em TeamMember
     await prisma.teamMember.deleteMany({
@@ -836,7 +916,6 @@ server.get('/messages', async (request: FastifyRequest, reply: FastifyReply) => 
     return reply.status(500).send({ error: 'Falha ao buscar as mensagens' });
   }
 });
-
 
 // Rota para buscar mensagens de um usuário específico
 server.get('/messages/:userId', async (request: FastifyRequest<{ Params: { userId: string } }>, reply: FastifyReply) => {
@@ -1012,13 +1091,13 @@ server.get('/properties/filter', async (request: FastifyRequest<{ Querystring: {
       where: {
         OR: [
           { userId: userIdNumber }, // Propriedades do usuário
-          ...(teamIdNumber !== null ? [{ user: { teamMemberships: { some: { teamId: teamIdNumber } } } }] : []), // Propriedades da equipe (se teamId for fornecido)
+          ...(teamIdNumber !== null ? [{ user: { teamMembers: { some: { teamId: teamIdNumber } } } }] : []), // Propriedades da equipe (se teamId for fornecido)
         ],
       },
       include: {
         user: {
           include: {
-            teamMemberships: {
+            teamMembers: {
               include: { team: true },
             },
           },
@@ -1026,8 +1105,7 @@ server.get('/properties/filter', async (request: FastifyRequest<{ Querystring: {
         images: true,
       },
     });
-
-    console.log("📌 Propriedades encontradas:", properties.length, "itens");
+    console.log("📌 Propriedades encontradas:", JSON.stringify(properties, null, 2));
 
     return reply.send(properties);
   } catch (error) {
