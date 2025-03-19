@@ -193,7 +193,7 @@ server.post("/session",
         include: {
           teamMembers: {
             include: {
-              team: true,  // Incluir o time do usuário
+              team: true, 
             }
           }
         }
