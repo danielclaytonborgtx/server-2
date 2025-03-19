@@ -119,38 +119,30 @@ server.post("/users", (request, reply) => __awaiter(void 0, void 0, void 0, func
     }
 }));
 // Rota de login via usuário e senha-ok
-server.post("/session", async (request, reply) => {
+server.post("/session", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     const { error } = loginSchema.validate(request.body);
     if (error) {
         return reply.status(400).send({ error: error.details[0].message });
     }
-
     const { username, password } = request.body;
-
     try {
-        console.log("Conectando ao banco de dados com DATABASE_URL:", process.env.DATABASE_URL);
-        // Buscando usuário com dados relacionados ao time
-        const user = await prisma.user.findUnique({
+        const user = yield prisma.user.findUnique({
             where: { username },
             include: {
                 teamMembers: {
                     include: {
-                        team: true, // Inclui o time do usuário
+                        team: true,
                     }
                 }
             }
         });
-
-        // Verifica se o usuário foi encontrado e se a senha é válida
         console.log("Usuário encontrado:", user);
-        if (!user || !(await bcrypt.compare(password, user.password))) {
+        if (!user || !(yield bcrypt_1.default.compare(password, user.password))) {
             console.error("Erro: Usuário ou senha inválidos");
             return reply.status(401).send({ error: "Invalid username or password" });
         }
-
         // Garantir que o campo picture seja tratado como opcional
         const userTeam = user.teamMembers.length > 0 ? user.teamMembers[0].team : null;
-
         return reply.send({
             message: "Login successful",
             user: {
@@ -162,16 +154,12 @@ server.post("/session", async (request, reply) => {
                 team: userTeam, // Incluindo a equipe do usuário
             },
         });
-
-    } catch (error) {
-        console.error("Erro ao fazer login:", error);
-        return reply.status(500).send({
-            error: "Falha ao fazer login",
-            details: process.env.NODE_ENV === 'development' ? error.message : undefined, // Detalhes no ambiente de desenvolvimento
-        });
     }
-});
-
+    catch (error) {
+        console.error("Erro ao fazer login:", error);
+        return reply.status(500).send({ error: "Falha ao fazer login" });
+    }
+}));
 // Rota para atualizar a imagem de perfil do usuário-ok
 server.post("/users/:id/profile-picture", (request, reply) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, e_1, _b, _c;
