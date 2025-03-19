@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "prisma:generate": "prisma generate",
-    "build": "npm run prisma:generate && tsc",
-    "start": "node dist/server.js"
-  },
+  "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+  "prisma:generate": "prisma generate",
+  "prisma:migrate": "prisma migrate deploy",
+  "build": "npm run prisma:generate && tsc",
+  "start": "node dist/server.js"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
