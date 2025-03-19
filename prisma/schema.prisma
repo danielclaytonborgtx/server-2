@@ -19,10 +19,13 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  properties       Property[] // Propriedades associadas ao usuário
-  messagesSent     Message[]    @relation("SentMessages") // Mensagens enviadas pelo usuário
-  messagesReceived Message[]    @relation("ReceivedMessages") // Mensagens recebidas pelo usuário
-  teamMembers      TeamMember[]
+  properties Property[] // Propriedades associadas ao usuário
+
+  messagesSent     Message[] @relation("SentMessages") // Mensagens enviadas pelo usuário
+  messagesReceived Message[] @relation("ReceivedMessages") // Mensagens recebidas pelo usuário
+
+  teamMembers TeamMember[]
+  invitations TeamInvitation[]
 }
 
 model Property {
@@ -60,12 +63,26 @@ model Message {
 }
 
 model Team {
-  id          Int          @id @default(autoincrement())
+  id          Int              @id @default(autoincrement())
   name        String
   imageUrl    String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   teamMembers TeamMember[] // Relacionamento com os membros da equipe
+  invitations TeamInvitation[]
+}
+
+model TeamInvitation {
+  id        Int      @id @default(autoincrement())
+  teamId    Int
+  userId    Int
+  status    String   @default("pending") // status pode ser 'pending', 'accepted', 'rejected'
+  createdAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([teamId, userId]) // Garantir que um convite para o mesmo time e usuário não se repita
 }
 
 model TeamMember {
