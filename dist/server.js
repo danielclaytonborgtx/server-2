@@ -128,6 +128,7 @@ server.post("/session", async (request, reply) => {
     const { username, password } = request.body;
 
     try {
+        console.log("Conectando ao banco de dados com DATABASE_URL:", process.env.DATABASE_URL);
         // Buscando usuário com dados relacionados ao time
         const user = await prisma.user.findUnique({
             where: { username },
