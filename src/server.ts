@@ -391,12 +391,12 @@ server.get('/users/:identifier',
     if (!isNaN(Number(identifier))) {
       user = await prisma.user.findUnique({ 
         where: { id: Number(identifier) },
-        select: { id: true, name: true, email: true, teamMembers: true }, // Adicione 
+        select: { id: true, name: true, username: true, email: true, teamMembers: true }, // Adicione 
       });
     } else {
       user = await prisma.user.findUnique({ 
         where: { username: identifier },
-        select: { id: true, name: true, email: true, teamMembers: true }, // Adicione teamId
+        select: { id: true, name: true, username: true, email: true, teamMembers: true }, // Adicione teamId
       });
     }
 
@@ -840,7 +840,6 @@ server.put('/team/:id', async (request: FastifyRequest<{ Params: { id: string } 
     }
   }
 });
-
 
 // Rota para remover membro da equipe
 server.delete('/team/member/:teamId/:id', 
@@ -1365,7 +1364,7 @@ server.get('/property/user',
     // Mapeando os imóveis para incluir as URLs completas das imagens
     const propertiesUrl = properties.map((property) => {
       const updatedImages = property.images.map((image) => {
-        const imageUrl = `https://servercasaperto.onrender.com${image.url}`;
+        const imageUrl = `http://localhost:3333${image.url}`;
         return imageUrl; // Retorna a URL completa da imagem
       });
 
