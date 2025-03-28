@@ -9,6 +9,7 @@ import fastifyStatic from '@fastify/static';
 import path from 'path';
 import fs from 'fs';
 import pump from 'pump';
+import cloudinary from './cloudinary';
 
 const server = Fastify();
 const prisma = new PrismaClient();
@@ -21,13 +22,13 @@ server.register(fastifyMultipart, {
   },
 });
 
-const uploadsPath = path.join(__dirname, '../uploads');
+// const uploadsPath = path.join(__dirname, '../uploads');
 
-// Registra o plugin para servir arquivos estáticos
-server.register(fastifyStatic, {
-  root: uploadsPath,
-  prefix: '/uploads/', // URL base para acessar os arquivos
-});
+// // Registra o plugin para servir arquivos estáticos
+// server.register(fastifyStatic, {
+//   root: uploadsPath,
+//   prefix: '/uploads/', // URL base para acessar os arquivos
+// });
 
 // Habilitar CORS
 server.register(cors, {
@@ -230,45 +231,55 @@ server.post("/session",
 // Rota para atualizar a imagem de perfil do usuário-ok
 server.post("/users/:id/profile-picture", 
   async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-  try {
-    const parts = request.parts(); // Processa arquivos e campos multipart
-    let profilePictureUrl: string = ""; // Variável para armazenar a URL da imagem de perfil
+    try {
+      const parts = request.parts(); // Processa arquivos e campos multipart
+      let profilePictureUrl: string = ""; // Variável para armazenar a URL da imagem de perfil
 
-    // Processar as partes da requisição
-    for await (const part of parts) {
-      if (part.type === "file") {
-        // Garante que o nome do arquivo seja único usando timestamp
-        const fileName = `${Date.now()}_${part.filename}`;
-        const filePath = path.join("uploads", fileName); // Diretório 'uploads/'
+      // Processar as partes da requisição
+      for await (const part of parts) {
+        if (part.type === "file") {
+          // Converte o arquivo em buffer
+          const buffer = await part.toBuffer();
 
-        // Gera a URL pública que pode ser acessada
-        profilePictureUrl = `/uploads/${fileName}`.replace(/\/+/g, "/"); // Elimina múltiplos "/"
-        console.log("URL gerada:", profilePictureUrl);
+          // Faz o upload para o Cloudinary
+          const result = await new Promise<any>((resolve, reject) => {  // Use "any" aqui
+            cloudinary.uploader.upload_stream(
+              {
+                folder: "profile_pictures", // Pasta onde as imagens serão armazenadas no Cloudinary
+              },
+              (error, result) => {
+                if (error) reject(error);
+                else resolve(result);
+              }
+            ).end(buffer); // Envia o arquivo como stream
+          });
 
-        // Faz o upload do arquivo para o diretório "uploads/"
-        await pump(part.file, fs.createWriteStream(filePath));
+          // A URL segura gerada pelo Cloudinary
+          profilePictureUrl = result.secure_url; // A URL segura é o que você vai armazenar
+          console.log("URL gerada:", profilePictureUrl);
+        }
       }
+
+      // Verifica se a URL da imagem foi gerada
+      if (!profilePictureUrl) {
+        return reply.status(400).send({ error: "Imagem de perfil não fornecida." });
+      }
+
+      // Atualiza a imagem de perfil do usuário no banco de dados
+      const updatedUser = await prisma.user.update({
+        where: { id: Number(request.params.id) },
+        data: {
+          picture: profilePictureUrl, // Atualiza o campo "picture" com a URL da imagem
+        },
+      });
+
+      return reply.status(200).send({ message: "Imagem de perfil atualizada com sucesso", user: updatedUser });
+    } catch (err) {
+      console.error("Erro ao atualizar imagem de perfil:", err);
+      return reply.status(500).send({ error: "Falha ao atualizar a imagem de perfil. Tente novamente." });
     }
-
-    // Verifica se a URL da imagem foi gerada
-    if (!profilePictureUrl) {
-      return reply.status(400).send({ error: "Imagem de perfil não fornecida." });
-    }
-
-    // Atualiza a imagem de perfil do usuário no banco de dados
-    const updatedUser = await prisma.user.update({
-      where: { id: Number(request.params.id) },
-      data: {
-        picture: profilePictureUrl, // Atualiza o campo "picture" com a URL da imagem
-      },
-    });
-
-    return reply.status(200).send({ message: "Imagem de perfil atualizada com sucesso", user: updatedUser });
-  } catch (err) {
-    console.error("Erro ao atualizar imagem de perfil:", err);
-    return reply.status(500).send({ error: "Falha ao atualizar a imagem de perfil. Tente novamente." });
   }
-});
+);
 
 // Rota para obter a imagem de perfil do usuário-ok
 server.get("/users/:id/profile-picture", 
@@ -412,7 +423,8 @@ server.get('/users/:identifier',
 });
 
 // Rota para criar equipes-ok
-server.post("/team", async (request, reply) => {
+server.post("/team", 
+  async (request, reply) => {
   try {
     const parts = request.parts();
     let teamImageUrl: string = "";
@@ -421,16 +433,25 @@ server.post("/team", async (request, reply) => {
 
     for await (const part of parts) {
       if (part.type === "file") {
-        const uploadDir = path.join(__dirname, '../uploads');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
+        // Converte o arquivo para buffer
+        const buffer = await part.toBuffer();
 
-        const fileName = `${Date.now()}_${part.filename}`;
-        const filePath = path.join(uploadDir, fileName);
-        teamImageUrl = `/uploads/${fileName}`.replace(/\/+/g, "/");
+        // Faz o upload para o Cloudinary
+        const result = await new Promise<any>((resolve, reject) => {
+          cloudinary.uploader.upload_stream(
+            {
+              folder: "team_images", // Pasta onde as imagens serão armazenadas no Cloudinary
+            },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          ).end(buffer);
+        });
 
-        await pump(part.file, fs.createWriteStream(filePath));
+        // Adiciona a URL da imagem
+        teamImageUrl = result.secure_url;
+        console.log("URL gerada para a imagem:", teamImageUrl);
       } else if (part.fieldname === "name") {
         teamName = typeof part.value === "string" ? part.value : String(part.value);
       } else if (part.fieldname === "members") {
@@ -493,7 +514,8 @@ server.post("/team", async (request, reply) => {
   }
 });
 
-server.get("/team-invitations/:userId", async (request, reply) => {
+server.get("/team-invitations/:userId", 
+  async (request, reply) => {
   try {
     const { userId } = request.params as { userId: string };
 
@@ -525,7 +547,8 @@ server.get("/team-invitations/:userId", async (request, reply) => {
 });
 
 // Rota para ceitar convite de equipe
-server.post("/team/invite/:invitationId/:action", async (request, reply) => {
+server.post("/team/invite/:invitationId/:action", 
+  async (request, reply) => {
   try {
     const { invitationId, action } = request.params as { invitationId: string, action: string };
     const { userId } = request.body as { userId: number }; // Pegando userId do corpo da requisição
@@ -592,7 +615,8 @@ server.post("/team/invite/:invitationId/:action", async (request, reply) => {
 });
 
 // Rota para adicionar corretor a equipe
-server.post('/teams/:teamId/member', async (request: FastifyRequest, reply: FastifyReply) => {
+server.post('/teams/:teamId/member', 
+  async (request: FastifyRequest, reply: FastifyReply) => {
   try {
     const { teamId } = request.params as { teamId: string };
     const { userId } = request.body as { userId: number };
@@ -701,7 +725,8 @@ server.post('/teams/:teamId/leave',
 });
 
 // Rota para editar equipe
-server.put('/team/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+server.put('/team/:id', 
+  async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
   try {
     const teamId = parseInt(request.params.id); // Convertendo id para número
     if (isNaN(teamId)) {
@@ -1178,18 +1203,25 @@ server.post("/property",
     // Processar as partes da requisição
     for await (const part of parts) {
       if (part.type === "file") {
-        // Garante que o nome do arquivo seja único usando timestamp
-        const fileName = `${Date.now()}_${part.filename}`;
-        const filePath = path.join("uploads", fileName); // Diretório 'uploads/'
+        // Converte o arquivo para buffer
+        const buffer = await part.toBuffer();
 
-        // Gera a URL pública que pode ser acessada
-        const imageUrl = `/uploads/${fileName}`.replace(/\/+/g, "/"); // Elimina múltiplos "/"
-        console.log("URL gerada:", imageUrl);
-        // Faz o upload do arquivo para o diretório "uploads/"
-        await pump(part.file, fs.createWriteStream(filePath));
+        // Faz o upload para o Cloudinary
+        const result = await new Promise<any>((resolve, reject) => {
+          cloudinary.uploader.upload_stream(
+            {
+              folder: "property_images", // Pasta onde as imagens serão armazenadas no Cloudinary
+            },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          ).end(buffer);
+        });
 
         // Adiciona a URL da imagem ao array de URLs
-        imagensUrls.push(imageUrl);
+        imagensUrls.push(result.secure_url);
+        console.log("URL gerada para a imagem:", result.secure_url);
       } else if (typeof part.value === "string") {
         // Adiciona os campos de texto ao formData
         formData[part.fieldname] = part.value;
@@ -1237,7 +1269,7 @@ server.post("/property",
       include: { images: true },
     });
     console.log("Imagens no banco:", property.images);
-    
+
     return reply.status(201).send({ message: "Imóvel criado com sucesso", property });
   } catch (err) {
     console.error("Erro ao criar imóvel:", err);
@@ -1335,51 +1367,52 @@ server.get("/property",
 // Rota para listar imóveis do usuário
 server.get('/property/user', 
   async (request: FastifyRequest<{ Querystring: { userId: string } }>, reply: FastifyReply) => {
-  const { userId } = request.query;
+    const { userId } = request.query;
 
-  const numericUserId = Number(userId); // Converte userId para número
+    const numericUserId = Number(userId); // Converte userId para número
 
-  if (isNaN(numericUserId)) {
-    return reply.status(400).send({ error: 'UserId é obrigatório e deve ser um número' });
-  }
-
-  try {
-    const properties = await prisma.property.findMany({
-      where: { userId: numericUserId },
-      include: { 
-        images: true,  // Inclui as imagens associadas ao imóvel
-        user: {  // Incluindo o usuário associado a cada imóvel
-          select: {
-            username: true, // Incluindo o nome do usuário
-          },
-        },
-      },
-    });
-
-    // Verificando se as propriedades foram encontradas
-    if (properties.length === 0) {
-      return reply.status(200).send([]); // Retorna uma lista vazia caso não haja imóveis
+    if (isNaN(numericUserId)) {
+      return reply.status(400).send({ error: 'UserId é obrigatório e deve ser um número' });
     }
 
-    // Mapeando os imóveis para incluir as URLs completas das imagens
-    const propertiesUrl = properties.map((property) => {
-      const updatedImages = property.images.map((image) => {
-        const imageUrl = `https://servercasaperto.onrender.com${image.url}`;
-        return imageUrl; // Retorna a URL completa da imagem
+    try {
+      const properties = await prisma.property.findMany({
+        where: { userId: numericUserId },
+        include: { 
+          images: true,  // Inclui as imagens associadas ao imóvel
+          user: {  // Incluindo o usuário associado a cada imóvel
+            select: {
+              username: true, // Incluindo o nome do usuário
+            },
+          },
+        },
       });
 
-      return {
-        ...property, // Mantém todas as informações do imóvel
-        images: updatedImages, // Substitui as imagens pela URL completa
-        username: property.user.username,  // Incluindo o nome do usuário
-      };
-    });
+      // Verificando se as propriedades foram encontradas
+      if (properties.length === 0) {
+        return reply.status(200).send([]); // Retorna uma lista vazia caso não haja imóveis
+      }
 
-    return reply.send(propertiesUrl); // Retorna a lista de imóveis com URLs das imagens e o nome do usuário
-  } catch (error) {
-    console.error('Erro ao buscar imóveis do usuário:', error);
-    return reply.status(500).send({ error: 'Falha ao buscar imóveis' });
-  }
+      // Mapeando os imóveis para incluir as URLs completas das imagens
+      const propertiesUrl = properties.map((property) => {
+        const updatedImages = property.images.map((image) => {
+          // Verifica se a URL já contém o domínio do Cloudinary
+          const imageUrl = image.url.startsWith('https://') ? image.url : `https://servercasaperto.onrender.com${image.url}`;
+          return imageUrl; // Retorna a URL completa da imagem
+        });
+
+        return {
+          ...property, // Mantém todas as informações do imóvel
+          images: updatedImages, // Substitui as imagens pela URL completa
+          username: property.user.username,  // Incluindo o nome do usuário
+        };
+      });
+
+      return reply.send(propertiesUrl); // Retorna a lista de imóveis com URLs das imagens e o nome do usuário
+    } catch (error) {
+      console.error('Erro ao buscar imóveis do usuário:', error);
+      return reply.status(500).send({ error: 'Falha ao buscar imóveis' });
+    }
 });
 
 // Rota para obter detalhes de um imóvel específico
@@ -1412,64 +1445,61 @@ server.get("/property/:id",
 });
 
 // Rota para editar imóveis
-server.put("/property/:id", 
-  async (request: FastifyRequest, reply: FastifyReply) => {
+server.put("/property/:id", async (request: FastifyRequest, reply: FastifyReply) => {
   try {
-    const { id } = request.params as { id: string }; // Captura o ID do imóvel
+    const { id } = request.params as { id: string };
     const parts = request.parts(); // Processa arquivos e campos multipart
     const imagensUrls: string[] = [];
     const formData: Record<string, string> = {};
 
+    // Processa os arquivos e campos de texto
     for await (const part of parts) {
       if (part.type === "file") {
-        const fileName = `${Date.now()}_${part.filename}`;
-        const filePath = path.join("uploads", fileName);
-        const imageUrl = `/uploads/${fileName}`.replace(/\/+/g, "/");
-        await pump(part.file, fs.createWriteStream(filePath));
-        imagensUrls.push(imageUrl);
+        const buffer = await part.toBuffer();
+
+        const result = await new Promise<any>((resolve, reject) => {
+          cloudinary.uploader.upload_stream(
+            { folder: "property_images" },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          ).end(buffer);
+        });
+
+        imagensUrls.push(result.secure_url);
+        console.log("Nova imagem upload:", result.secure_url);
       } else if (typeof part.value === "string") {
         formData[part.fieldname] = part.value;
       }
     }
 
-    const {
-      title,
-      price,
-      description,
-      description1,
-      userId,
-      latitude,
-      longitude,
-      category,
-      existingImages, // Nova chave para imagens existentes
-    } = formData;
+    const { title, price, description, description1, latitude, longitude, category, existingImages } = formData;
 
-    if (!title && !price && !description && !description1 && !latitude && !longitude && !category && imagensUrls.length === 0) {
-      return reply.status(400).send({ error: "Nenhum dado enviado para atualizar o imóvel." });
-    }
-
+    // Busca o imóvel existente
     const existingProperty = await prisma.property.findUnique({
       where: { id: Number(id) },
-      include: { images: true }, // Inclui as imagens associadas
+      include: { images: true },
     });
 
     if (!existingProperty) {
       return reply.status(404).send({ error: "Imóvel não encontrado." });
     }
 
-    // Parse das imagens existentes enviadas no corpo
+    // Se `existingImages` for enviado, usamos ele para manter apenas essas imagens no banco
     const existingImagesArray: string[] = existingImages ? JSON.parse(existingImages) : [];
 
-    // Remove imagens que não estão na lista de imagens existentes
+    // Identifica as imagens que devem ser removidas do banco
     const imagesToRemove = existingProperty.images.filter(
       (image) => !existingImagesArray.includes(image.url)
     );
 
+    // Remove imagens que não estão na lista de imagens mantidas
     await prisma.image.deleteMany({
       where: { id: { in: imagesToRemove.map((image) => image.id) } },
     });
 
-    // Atualiza o imóvel no banco de dados
+    // Atualiza os dados do imóvel
     const updatedProperty = await prisma.property.update({
       where: { id: Number(id) },
       data: {
@@ -1481,10 +1511,10 @@ server.put("/property/:id",
         ...(longitude && { longitude: Number(longitude) }),
         ...(category && { category: category[0].toUpperCase() + category.slice(1).toLowerCase() }),
         images: {
-          create: imagensUrls.map((url) => ({ url })), // Adiciona novas imagens
+          create: imagensUrls.map((url) => ({ url })), // Adiciona apenas novas imagens
         },
       },
-      include: { images: true }, // Retorna as imagens atualizadas
+      include: { images: true },
     });
 
     return reply.status(200).send({
