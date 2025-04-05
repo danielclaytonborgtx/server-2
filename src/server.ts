@@ -22,21 +22,12 @@ server.register(fastifyMultipart, {
   },
 });
 
-// const uploadsPath = path.join(__dirname, '../uploads');
-
-// // Registra o plugin para servir arquivos estáticos
-// server.register(fastifyStatic, {
-//   root: uploadsPath,
-//   prefix: '/uploads/', // URL base para acessar os arquivos
-// });
-
-// Habilitar CORS
 server.register(cors, {
-  origin: "*", // Ajuste conforme necessário
+  origin: "*", 
 });
 
 interface Params {
-  id: string; // Ou 'id: number' se for um número
+  id: string; 
 }
 
 interface FilterQuery {
@@ -44,7 +35,6 @@ interface FilterQuery {
   teamId: string;
 }
 
-// Interfaces para o corpo das requisições
 interface RegisterRequest {
   name: string;
   email: string;
@@ -77,8 +67,8 @@ interface MessageRequest {
 
 interface TeamRequest {
   name: string;
-  members: number[]; // IDs dos membros
-  imageUrl: string; // Caminho da imagem da equipe
+  members: number[]; 
+  imageUrl: string; 
 }
 
 // Esquemas de validação
@@ -107,23 +97,23 @@ const propertySchema = Joi.object<PropertyRequest>({
 });
 
 const messageSchema = Joi.object({
-  senderId: Joi.number().required(), // Id do remetente
-  receiverId: Joi.number().required(), // Id do destinatário
-  content: Joi.string().min(1).required(), // Conteúdo da mensagem
+  senderId: Joi.number().required(), 
+  receiverId: Joi.number().required(), 
+  content: Joi.string().min(1).required(), 
 });
 
 const teamSchema = Joi.object<TeamRequest>({
   name: Joi.string().required(),
   members: Joi.array().items(Joi.number().integer().required()).min(1).required(),
-  imageUrl: Joi.string().uri().optional(), // Validação para a URL da imagem, caso fornecida
+  imageUrl: Joi.string().uri().optional(), 
 });
 
 declare module 'fastify' {
   interface FastifyRequest {
     user: {
-      id: number; // Id do usuário
-      email: string; // Email do usuário (ou outros campos que você desejar)
-      username: string; // Nome de usuário
+      id: number; 
+      email: string; 
+      username: string; 
     };
   }
 }
@@ -1152,6 +1142,36 @@ server.get('/messages/conversations/:userId',
   } catch (err) {
     console.error(err);
     return reply.status(500).send({ error: 'Falha ao buscar conversas' });
+  }
+});
+
+// Rota para mensagem nao lida
+server.get('/messages/unread-since', 
+  async (request: FastifyRequest, reply: FastifyReply) => {
+  const { userId, since } = request.query as { userId: string; since: string };
+
+  const userIdNum = parseInt(userId, 10);
+  const sinceDate = new Date(since);
+
+  if (isNaN(userIdNum) || isNaN(sinceDate.getTime())) {
+    return reply.status(400).send({ error: 'Parâmetros inválidos' });
+  }
+
+  try {
+    const messages = await prisma.message.findMany({
+      where: {
+        receiverId: userIdNum,
+        timestamp: {
+          gt: sinceDate,
+        },
+      },
+    });
+
+    const hasUnread = messages.length > 0;
+    return reply.send({ hasUnread });
+  } catch (err) {
+    console.error(err);
+    return reply.status(500).send({ error: 'Erro ao verificar novas mensagens' });
   }
 });
 
